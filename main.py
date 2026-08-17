@@ -42,12 +42,7 @@ class ArexBot(commands.Bot):
     async def setup_hook(self):
         self.session = aiohttp.ClientSession()
         await self.load_all_extensions()
-        # Load the manual sync cog
-        try:
-            await self.load_extension('Treesync')
-            print(f"{Fore.GREEN}[+] Loaded Treesync extension{Style.RESET_ALL}")
-        except Exception as e:
-            print(f"{Fore.RED}[!] Failed to load Treesync: {e}{Style.RESET_ALL}")
+        # Note: sync cog is loaded via cogs/Admin during load_all_extensions
 
     async def close(self):
         if self.session and not self.session.closed:
