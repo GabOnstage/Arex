@@ -8,10 +8,12 @@ class Joke(commands.Cog):
 
     @commands.hybrid_group(name="joke", fallback="random", description="Tells a random joke")
     async def joke(self, ctx: commands.Context) -> None:
-        await self.randomjoke(ctx)
+        """Sends a Random category joke."""
+        await self._fetch_jokeapi(ctx, "Any", "😂 Random Joke")
 
     @joke.command(name="dad", description="Sends a funny Dad joke")
     async def dadjoke(self, ctx: commands.Context):
+        await ctx.defer()
         session = getattr(self.bot, 'session', None)
         close_session = False
         if session is None or session.closed:
@@ -36,6 +38,7 @@ class Joke(commands.Cog):
 
     @joke.command(name="chucknorris", description="Sends a Chuck Norris joke")
     async def chuckjoke(self, ctx: commands.Context):
+        await ctx.defer()
         session = getattr(self.bot, 'session', None)
         close_session = False
         if session is None or session.closed:
@@ -73,11 +76,8 @@ class Joke(commands.Cog):
     async def spookyjoke(self, ctx: commands.Context):
         await self._fetch_jokeapi(ctx, "Spooky", "🎃 Spooky Joke")
 
-    @joke.command(name="random", description="Sends a Random category joke")
-    async def randomjoke(self, ctx: commands.Context):
-        await self._fetch_jokeapi(ctx, "Any", "😂 Random Joke")
-
     async def _fetch_jokeapi(self, ctx: commands.Context, category: str, title: str):
+        await ctx.defer()
         session = getattr(self.bot, 'session', None)
         close_session = False
         if session is None or session.closed:

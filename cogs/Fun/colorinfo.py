@@ -12,35 +12,39 @@ class ColorView(discord.ui.View):
 
     @discord.ui.button(label="Randomize Color", emoji="🎲", style=discord.ButtonStyle.primary)
     async def random_color(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer()
         red = random.randint(0, 255)
         green = random.randint(0, 255)
         blue = random.randint(0, 255)
 
         api_url = f'https://www.thecolorapi.com/id?rgb={red},{green},{blue}&format=json'
 
-        async with aiohttp.ClientSession() as session:
-            async with session.get(api_url, timeout=5) as response:
-                if response.status == 200:
-                    response_data = await response.json()
-                else:
-                    await interaction.response.send_message("Failed to fetch new color from TheColorAPI.", ephemeral=True)
-                    return
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(api_url, timeout=5) as response:
+                    if response.status == 200:
+                        response_data = await response.json()
+                    else:
+                        await interaction.followup.send("Failed to fetch new color from TheColorAPI.", ephemeral=True)
+                        return
 
-        color_name = response_data['name']['value']
-        hex_number = response_data['hex']['value']
-        rgb_str = f"R: {red}, G: {green}, B: {blue}"
-        new_html_url = f'https://www.thecolorapi.com/id?rgb={red},{green},{blue}&format=html'
-        image_url = f'https://fakeimg.pl/720x400/{hex_number[1:]}/fff/?text=+'
-        thumbnail_url = f'https://fakeimg.pl/450x450/{hex_number[1:]}/fff/?text=+'
+            color_name = response_data['name']['value']
+            hex_number = response_data['hex']['value']
+            rgb_str = f"R: {red}, G: {green}, B: {blue}"
+            new_html_url = f'https://www.thecolorapi.com/id?rgb={red},{green},{blue}&format=html'
+            image_url = f'https://fakeimg.pl/720x400/{hex_number[1:]}/fff/?text=+'
+            thumbnail_url = f'https://fakeimg.pl/450x450/{hex_number[1:]}/fff/?text=+'
 
-        embed = discord.Embed(title=color_name, url=new_html_url, color=discord.Color.from_rgb(red, green, blue))
-        embed.add_field(name='Hex', value=f"`{hex_number}`", inline=True)
-        embed.add_field(name='RGB', value=f"`{rgb_str}`", inline=True)
-        embed.set_image(url=image_url)
-        embed.set_thumbnail(url=thumbnail_url)
+            embed = discord.Embed(title=color_name, url=new_html_url, color=discord.Color.from_rgb(red, green, blue))
+            embed.add_field(name='Hex', value=f"`{hex_number}`", inline=True)
+            embed.add_field(name='RGB', value=f"`{rgb_str}`", inline=True)
+            embed.set_image(url=image_url)
+            embed.set_thumbnail(url=thumbnail_url)
 
-        new_view = ColorView(color_name, hex_number, {'r': red, 'g': green, 'b': blue}, new_html_url)
-        await interaction.response.edit_message(embed=embed, view=new_view)
+            new_view = ColorView(color_name, hex_number, {'r': red, 'g': green, 'b': blue}, new_html_url)
+            await interaction.edit_original_response(embed=embed, view=new_view)
+        except Exception as e:
+            await interaction.followup.send(f"Error updating color: {e}", ephemeral=True)
 
 class ColorInfo(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:

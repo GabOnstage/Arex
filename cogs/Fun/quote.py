@@ -10,6 +10,7 @@ class RandomQuote(discord.ui.View):
 
     @discord.ui.button(label="New Quote", emoji="🎲", style=discord.ButtonStyle.primary)
     async def quotebutton(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer()
         content, author = await fetch_quote(self.bot)
         if content:
             embed = discord.Embed(
@@ -17,9 +18,9 @@ class RandomQuote(discord.ui.View):
                 color=discord.Color.teal()
             )
             embed.set_footer(text=f"— {author}")
-            await interaction.response.edit_message(embed=embed, view=self)
+            await interaction.edit_original_response(embed=embed, view=self)
         else:
-            await interaction.response.send_message("Failed to retrieve a new quote. Please try again later.", ephemeral=True)
+            await interaction.followup.send("Failed to retrieve a new quote. Please try again later.", ephemeral=True)
 
 async def fetch_quote(bot: commands.Bot) -> Tuple[Optional[str], Optional[str]]:
     session = getattr(bot, 'session', None)

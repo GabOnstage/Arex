@@ -53,7 +53,7 @@ class HelpMenu(commands.Cog):
 
         if group is None:
             maindesc = self.get_section_content('main')
-            mainpage = discord.Embed(title="<:command:1231635543918645268> Commands", description=maindesc, color=discord.Color.blurple())
+            mainpage = discord.Embed(title="⚡ Commands", description=maindesc, color=discord.Color.blurple())
             mainpage.set_footer(text="Arexium © ITron Technologies")
             mainpage.set_thumbnail(url="https://cdn.discordapp.com/avatars/1143816212929859584/a_6211b083d72ad4f545d6418185d7cc52.gif")
             menu.add_page(mainpage)
@@ -68,8 +68,8 @@ class HelpMenu(commands.Cog):
                 discord.SelectOption(label="Anime/Movies", emoji="🎥"): [
                     Page(embed=discord.Embed(title="🎥 Anime/Movie Commands", description=animedesc, color=discord.Color.purple()))
                 ],
-                discord.SelectOption(label="Roblox", emoji="<:roblox:1204357280804511764>"): [
-                    Page(embed=discord.Embed(title="<:roblox:1204357280804511764> Roblox Commands", description=robloxdesc, color=discord.Color.red()))
+                discord.SelectOption(label="Roblox", emoji="🎮"): [
+                    Page(embed=discord.Embed(title="🎮 Roblox Commands", description=robloxdesc, color=discord.Color.red()))
                 ],
                 discord.SelectOption(label="Utilities", emoji="🎲"): [
                     Page(embed=discord.Embed(title="🎲 Utility Commands", description=utilsdesc, color=discord.Color.gold()))
@@ -84,7 +84,7 @@ class HelpMenu(commands.Cog):
             elif group in ("movies-anime", "anime"):
                 embed = discord.Embed(title="🎥 Anime/Movie Commands", description=animedesc, color=discord.Color.purple())
             elif group == "roblox":
-                embed = discord.Embed(title="<:roblox:1204357280804511764> Roblox Commands", description=robloxdesc, color=discord.Color.red())
+                embed = discord.Embed(title="🎮 Roblox Commands", description=robloxdesc, color=discord.Color.red())
             elif group in ("utilities", "utils"):
                 embed = discord.Embed(title="🎲 Utility Commands", description=utilsdesc, color=discord.Color.gold())
             else:
@@ -93,9 +93,9 @@ class HelpMenu(commands.Cog):
             await ctx.send(embed=embed)
             return
 
-        back_button = ViewButton(style=discord.ButtonStyle.primary, label='', emoji='<:left:1227864319790809168>', custom_id=ViewButton.ID_PREVIOUS_PAGE)
+        back_button = ViewButton(style=discord.ButtonStyle.primary, label='', emoji='◀️', custom_id=ViewButton.ID_PREVIOUS_PAGE)
         menu.add_button(back_button)
-        next_button = ViewButton(style=discord.ButtonStyle.success, label='', emoji='<:right:1227818792311066685>', custom_id=ViewButton.ID_NEXT_PAGE)
+        next_button = ViewButton(style=discord.ButtonStyle.success, label='', emoji='▶️', custom_id=ViewButton.ID_NEXT_PAGE)
         menu.add_button(next_button)
         link_button = ViewButton(style=discord.ButtonStyle.link, emoji='🌍', label='Website', url='https://google.com')
         menu.add_button(link_button)

@@ -10,10 +10,7 @@ class AvatarFun(commands.Cog):
 
     @commands.hybrid_group(name="avatar", fallback="abstract", description="Image processing and avatar filters.")
     async def avatar(self, ctx: commands.Context, file: discord.Attachment) -> None:
-        await self.avabstract(ctx, file)
-
-    @avatar.command(name="abstract", description="Applies an abstract effect to the uploaded image.")
-    async def avabstract(self, ctx: commands.Context, file: discord.Attachment):
+        """Applies an abstract effect to the uploaded image."""
         api_token = os.getenv('jeyy_api')
         if not api_token:
             await ctx.send("The `jeyy_api` key is not configured in `.env`. Please add it to use avatar image filters.")

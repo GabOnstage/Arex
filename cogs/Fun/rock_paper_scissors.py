@@ -1,5 +1,6 @@
 import discord
 from discord.ext import commands
+from discord import app_commands
 from typing import Optional
 
 async def is_valid_opponent(ctx: commands.Context, opponent: Optional[discord.Member]) -> bool:
@@ -125,6 +126,7 @@ class Games(commands.Cog):
         self.bot = bot
 
     @commands.hybrid_command(name="rockpaperscissors", aliases=['rps'], description="Play Rock Paper Scissors against a server member.")
+    @app_commands.describe(opponent="Select the server member you want to challenge")
     async def rockpaperscissors(self, ctx: commands.Context, opponent: discord.Member):
         """Play Rock Paper Scissors with a friend."""
         if not await is_valid_opponent(ctx, opponent):

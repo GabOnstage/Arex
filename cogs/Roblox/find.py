@@ -223,7 +223,7 @@ class Find(commands.Cog):
                 html_url=html_url,
                 full_body_avatar_url=full_body_url
             )
-            view.add_item(discord.ui.Button(label="Open Roblox Profile", style=discord.ButtonStyle.link, url=html_url, emoji="<:roblox:1204357280804511764>"))
+            view.add_item(discord.ui.Button(label="Open Roblox Profile", style=discord.ButtonStyle.link, url=html_url, emoji="🎮"))
 
             embed = view.build_basic_embed()
             msg = await ctx.send(embed=embed, view=view)
