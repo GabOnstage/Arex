@@ -73,6 +73,15 @@ class ArexBot(commands.Bot):
 bot = ArexBot()
 
 @bot.event
+async def on_message(message):
+    if message.author.bot:
+        return
+        
+    print(f"[DEBUG] Saw message: {repr(message.content)}")
+    print(f"[DEBUG] Bot Prefix is currently: {repr(bot.command_prefix)}")
+    
+    await bot.process_commands(message)
+@bot.event
 async def on_command_error(ctx, error):
     if isinstance(error, commands.CommandNotFound):
         return
