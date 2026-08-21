@@ -55,7 +55,7 @@ A feature-rich Discord bot designed with moderation, Roblox player lookup, and e
 | `DISCORD_TOKEN` | Your Discord Bot Token from Developer Portal | **Yes** |
 | `APPLICATION_ID` | Your Discord Bot Application ID | **Yes** |
 | `OWNERS` | Comma-separated list of Bot Owner Discord User IDs | **Yes** |
-| `PREFIX` | Command prefix (e.g. `!`) | Optional (Default: `!`) |
+| `COMMAND` | Command prefix (e.g. `!`) | Optional (Default: `!`) |
 | `ALLOWED_USER_IDS` | Comma-separated list of Admin Discord User IDs for `/al` | Optional |
 | `NASA_API_KEY` | NASA API Key for `/apod` | Optional (Default: `DEMO_KEY`) |
 | `jeyy_api` | Jeyy API Token for `/avatar` filters | Optional |

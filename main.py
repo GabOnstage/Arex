@@ -19,7 +19,16 @@ app_id = os.getenv('APPLICATION_ID') or os.getenv('APPLICATONID')
 raw_owners = os.getenv('OWNERS', '')
 owners_id = [int(o.strip()) for o in raw_owners.split(',') if o.strip().isdigit()]
 
-prefix = os.getenv('PREFIX', '!')
+prefix = os.getenv('COMMAND', '!')
+
+# Guard against misconfigured prefixes (e.g. shell paths like $PREFIX leaking
+# into .env on Termux: "/data/data/com.termux/files/usr").
+if not prefix or len(prefix) > 10 or prefix.startswith('/') or any(ch.isspace() for ch in prefix):
+    print(
+        f"{Fore.YELLOW}WARNING: COMMAND in .env is invalid ({prefix!r}). "
+        f"Falling back to '!'. Fix COMMAND in your .env file.{Style.RESET_ALL}"
+    )
+    prefix = '!'
 
 # Setup Intents
 intents = discord.Intents.default()
