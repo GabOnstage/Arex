@@ -24,8 +24,20 @@ class Help(commands.Cog):
                 "• `!sync`: Synchronize slash commands with Discord.\n"
                 "• `/locate`: Geolocation lookup for IP/Domain.\n"
                 "• `/userinfo`: Detailed user information & Discord badges.\n"
+                "• `/tempchannel`: Create auto-expiring temporary channels."
+            ),
+            inline=False
+        )
+
+        embed.add_field(
+            name="「 🎮 」Roblox & Minecraft",
+            value=(
                 "• `/find`: Comprehensive Roblox user lookup.\n"
-                "• `/badge`: Search user Roblox badges."
+                "• `/badge`: Search user Roblox badges.\n"
+                "• `/rotector_user` / `/rotector_group` / `/rotector_discord`: Rotector flag lookups "
+                "(also `_plain`, `_batch`, `_status_batch`, `_tracked` variants).\n"
+                "• `/mcserver`: Minecraft server status & stats.\n"
+                "• `/mcskin`: Minecraft user skin & profile lookup."
             ),
             inline=False
         )
@@ -48,7 +60,8 @@ class Help(commands.Cog):
                 "• `/rockpaperscissors`: Play RPS with a friend.\n"
                 "• `/guesspokemon`: Who's That Pokemon mini-game.\n"
                 "• `/quote`: Inspirational quotes.\n"
-                "• `/f1`: Formula 1 latest race standings."
+                "• `/f1`: Formula 1 latest race standings.\n"
+                "• `/imdb`: Search IMDB for movies & shows."
             ),
             inline=False
         )
@@ -60,7 +73,12 @@ class Help(commands.Cog):
                 "• `/color`: Detailed RGB/Hex color information.\n"
                 "• `/apod`: NASA Astronomy Picture of the Day.\n"
                 "• `/echo`: Repeat a message safely.\n"
-                "• `/tempchannel`: Create auto-expiring temporary channels."
+                "• `/dictionary`: Look up word definitions.\n"
+                "• `/qr`: Generate a QR code from text.\n"
+                "• `/b64 encode|decode`: Base64 encoder/decoder.\n"
+                "• `/hn`: Top Hacker News stories.\n"
+                "• `/weather`: Current weather via Open-Meteo.\n"
+                "• `/testhelp`: Interactive categorized help menu."
             ),
             inline=False
         )

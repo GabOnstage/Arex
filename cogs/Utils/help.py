@@ -69,7 +69,7 @@ class HelpMenu(commands.Cog):
                     Page(embed=discord.Embed(title="🎥 Anime/Movie Commands", description=animedesc, color=discord.Color.purple()))
                 ],
                 discord.SelectOption(label="Roblox", emoji="🎮"): [
-                    Page(embed=discord.Embed(title="🎮 Roblox Commands", description=robloxdesc, color=discord.Color.red()))
+                    Page(embed=discord.Embed(title="🎮 Roblox & Minecraft Commands", description=robloxdesc, color=discord.Color.red()))
                 ],
                 discord.SelectOption(label="Utilities", emoji="🎲"): [
                     Page(embed=discord.Embed(title="🎲 Utility Commands", description=utilsdesc, color=discord.Color.gold()))
@@ -84,7 +84,7 @@ class HelpMenu(commands.Cog):
             elif group in ("movies-anime", "anime"):
                 embed = discord.Embed(title="🎥 Anime/Movie Commands", description=animedesc, color=discord.Color.purple())
             elif group == "roblox":
-                embed = discord.Embed(title="🎮 Roblox Commands", description=robloxdesc, color=discord.Color.red())
+                embed = discord.Embed(title="🎮 Roblox & Minecraft Commands", description=robloxdesc, color=discord.Color.red())
             elif group in ("utilities", "utils"):
                 embed = discord.Embed(title="🎲 Utility Commands", description=utilsdesc, color=discord.Color.gold())
             else:
