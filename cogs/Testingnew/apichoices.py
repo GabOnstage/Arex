@@ -36,7 +36,7 @@ class ChoiceApi(commands.Cog):
             close_session = True
 
         try:
-            async with session.get(f'https://users.roblox.com/v1/users/search?keyword={query}&limit=10', timeout=3) as resp:
+            async with session.get(f'https://users.roblox.com/v1/users/search?keyword={query}&limit=10', timeout=aiohttp.ClientTimeout(total=2)) as resp:
                 if resp.status == 200:
                     data = await resp.json()
                     users = data.get('data', [])
