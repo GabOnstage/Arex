@@ -3,7 +3,7 @@ from discord.ext import commands
 from discord import app_commands
 import aiohttp
 import random
-from typing import Optional
+from typing import Optional, Tuple
 
 RIZZ_LINES = [
     "Are you a magician? Because whenever I look at you, everyone else disappears.",
@@ -28,7 +28,7 @@ RIZZ_LINES = [
     "Is your name Chapstick? Because you're da balm."
 ]
 
-async def fetch_rizz(bot: commands.Bot) -> str:
+async def fetch_rizz(bot: commands.Bot) -> Tuple[Optional[str], Optional[str]]:
     session = getattr(bot, 'session', None)
     close_session = False
     if session is None or session.closed:
@@ -36,19 +36,18 @@ async def fetch_rizz(bot: commands.Bot) -> str:
         close_session = True
 
     try:
-        async with session.get("https://vincenttechblog.com/api/rizz.php", timeout=4) as response:
+        async with session.get("https://rizzapi.vercel.app/random", timeout=4) as response:
             if response.status == 200:
                 data = await response.json(content_type=None)
-                if isinstance(data, dict) and "text" in data:
-                    return data["text"]
-                elif isinstance(data, dict) and "rizz" in data:
-                    return data["rizz"]
+                text = data.get("text")
+                if isinstance(text, str) and text.strip():
+                    return text.strip(), data.get("category")
     except Exception:
         pass
     finally:
         if close_session and session and not session.closed:
             await session.close()
-    return random.choice(RIZZ_LINES)
+    return random.choice(RIZZ_LINES), None
 
 class RizzView(discord.ui.View):
     def __init__(self, bot: commands.Bot, target_user: Optional[discord.Member] = None, timeout=180):
@@ -59,13 +58,15 @@ class RizzView(discord.ui.View):
     @discord.ui.button(label="More Rizz", emoji="🔥", style=discord.ButtonStyle.primary)
     async def new_rizz(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.defer()
-        line = await fetch_rizz(self.bot)
-        
+        line, category = await fetch_rizz(self.bot)
+
         embed = discord.Embed(
             title="😏 Ultimate Rizz",
             description=f"### *\"{line}\"*",
             color=discord.Color.nitro_pink()
         )
+        if category:
+            embed.set_footer(text=f"Category: {category}")
         content = f"{self.target_user.mention}" if self.target_user else None
         await interaction.edit_original_response(content=content, embed=embed, view=self)
 
@@ -78,14 +79,17 @@ class Rizz(commands.Cog):
     async def rizz(self, ctx: commands.Context, user: Optional[discord.Member] = None):
         """Generate a rizz line."""
         await ctx.defer()
-        line = await fetch_rizz(self.bot)
+        line, category = await fetch_rizz(self.bot)
 
         embed = discord.Embed(
             title="😏 Ultimate Rizz",
             description=f"### *\"{line}\"*",
             color=discord.Color.nitro_pink()
         )
-        embed.set_footer(text=f"Delivered by {ctx.author.display_name}")
+        footer = f"Delivered by {ctx.author.display_name}"
+        if category:
+            footer += f" | Category: {category}"
+        embed.set_footer(text=footer)
 
         content = f"{user.mention}" if user else None
         view = RizzView(self.bot, target_user=user)
