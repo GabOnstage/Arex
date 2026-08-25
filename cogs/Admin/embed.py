@@ -34,6 +34,8 @@ URL_PATTERN = re.compile(
 
 TRAILING_PUNCTUATION = ".,;:!?)}]>\"'"
 
+MAX_TRACKED_REPLIES = 5000
+
 
 def _parse_guild_ids() -> frozenset:
     raw = os.getenv("Guilds", "")
@@ -49,6 +51,7 @@ class EmbedFix(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.allowed_guilds = _parse_guild_ids()
+        self._replies = {}
         if not self.allowed_guilds:
             print("EmbedFix: Guilds is not set in .env — beta auto-fix is disabled everywhere.")
 
@@ -68,6 +71,30 @@ class EmbedFix(commands.Cog):
                 continue
         return primary
 
+    @staticmethod
+    def _is_wrapped(content: str, match: re.Match) -> bool:
+        start, end = match.span()
+        before = content[start - 1] if start > 0 else ""
+        after = content[end] if end < len(content) else ""
+        return before == "<" and after == ">"
+
+    def _track_reply(self, original_id: int, channel_id: int, reply_id: int):
+        self._replies[original_id] = (channel_id, reply_id)
+        while len(self._replies) > MAX_TRACKED_REPLIES:
+            del self._replies[next(iter(self._replies))]
+
+    async def _delete_tracked_reply(self, original_id: int):
+        entry = self._replies.pop(original_id, None)
+        if entry is None:
+            return
+        channel = self.bot.get_channel(entry[0])
+        if channel is None:
+            return
+        try:
+            await channel.get_partial_message(entry[1]).delete()
+        except discord.HTTPException:
+            pass
+
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         if message.author.bot or message.guild is None:
@@ -81,9 +108,14 @@ class EmbedFix(commands.Cog):
         if any(message.content.startswith(p) for p in prefixes):
             return
 
+        if message.flags.suppress_embeds:
+            return
+
         found = []
         seen = set()
         for match in URL_PATTERN.finditer(message.content):
+            if self._is_wrapped(message.content, match):
+                continue
             url = match.group(0).rstrip(TRAILING_PUNCTUATION)
             domain = match.group("domain").lower()
             key = url.lower()
@@ -106,12 +138,27 @@ class EmbedFix(commands.Cog):
             for url, domain in found:
                 fixed_links.append(await self._resolve(session, domain, url))
             try:
-                await message.reply(content="\n".join(fixed_links), mention_author=False)
+                reply = await message.reply(content="\n".join(fixed_links), mention_author=False)
             except discord.HTTPException:
-                pass
+                return
+            self._track_reply(message.id, message.channel.id, reply.id)
         finally:
             if close_session and session and not session.closed:
                 await session.close()
+
+    @commands.Cog.listener()
+    async def on_message_edit(self, before: discord.Message, after: discord.Message):
+        if after.author.bot or after.guild is None:
+            return
+        if after.guild.id not in self.allowed_guilds:
+            return
+        await self._delete_tracked_reply(after.id)
+
+    @commands.Cog.listener()
+    async def on_message_delete(self, message: discord.Message):
+        if message.guild is None or message.guild.id not in self.allowed_guilds:
+            return
+        await self._delete_tracked_reply(message.id)
 
     @commands.hybrid_command(name="embed", description="Fix a social media link so it embeds properly in Discord.")
     @app_commands.describe(link=f"Link to fix ({SUPPORTED_PLATFORMS})")
