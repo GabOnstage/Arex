@@ -48,6 +48,7 @@ CATEGORIES = {
             "`/smashorpass [user]` — The ultimate verdict on a user.",
             "`/coinflip` — Flip a coin.",
             "`/waifu [tag] [animated]` — Random SFW anime images from waifu.im.",
+            "`/waifu_nsfw [tag] [animated]` — Random 18+ anime images (NSFW channels only).",
             "`/anime <title>` — Search anime info on Kitsu.",
             "`/animequote` — Random anime quote.",
             "`/action <type> [user]` — Anime reaction GIFs (hug, slap, pat...).",

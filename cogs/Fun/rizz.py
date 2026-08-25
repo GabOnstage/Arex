@@ -63,7 +63,7 @@ class RizzView(discord.ui.View):
         embed = discord.Embed(
             title="😏 Ultimate Rizz",
             description=f"### *\"{line}\"*",
-            color=discord.Color.nitro_pink()
+            color=discord.Color(0xEB459E)
         )
         if category:
             embed.set_footer(text=f"Category: {category}")
@@ -84,7 +84,7 @@ class Rizz(commands.Cog):
         embed = discord.Embed(
             title="😏 Ultimate Rizz",
             description=f"### *\"{line}\"*",
-            color=discord.Color.nitro_pink()
+            color=discord.Color(0xEB459E)
         )
         footer = f"Delivered by {ctx.author.display_name}"
         if category:

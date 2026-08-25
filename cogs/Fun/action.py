@@ -74,7 +74,7 @@ class Action(commands.Cog):
         else:
             caption = f"{ctx.author.display_name} {verb} nobody in particular..."
 
-        embed = discord.Embed(description=caption, color=discord.Color.pink())
+        embed = discord.Embed(description=caption, color=discord.Color(0xEB459F))
         embed.set_image(url=gif_url)
         await ctx.send(embed=embed)
 

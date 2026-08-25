@@ -41,7 +41,7 @@ class Ship(commands.Cog):
         embed = discord.Embed(
             title=f"💕 {user1.display_name} × {user2.display_name}",
             description=f"{_heart_bar(percent)}\n\n### {percent}% compatible",
-            color=discord.Color.nitro_pink()
+            color=discord.Color(0xEB459E)
         )
         embed.add_field(name="Verdict", value=_ship_quote(percent), inline=False)
         embed.set_thumbnail(url=user2.display_avatar.url)
