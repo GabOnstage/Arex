@@ -22,7 +22,7 @@ CATEGORIES = {
         "emoji": "🎮",
         "description": "Game lookups, badges & server status",
         "commands": [
-            "`/find` — Comprehensive Roblox user lookup.",
+            "`/roblox_user` — Comprehensive Roblox user lookup.",
             "`/badge` — Search user Roblox badges.",
             "`/rotector_user`, `/rotector_group`, `/rotector_discord` — Rotector flag lookups (plus `_plain`, `_batch`, `_status_batch`, `_tracked` variants).",
             "`/mcserver` — Minecraft server status & stats.",

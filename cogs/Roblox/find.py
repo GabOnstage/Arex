@@ -5,7 +5,12 @@ from dateutil import parser
 import aiohttp
 import asyncio
 from datetime import datetime, timezone
-from typing import Optional
+from time import monotonic
+from typing import List, Optional
+
+SEARCH_CACHE_TTL = 300
+SEARCH_CACHE_MAX = 200
+_search_cache: dict = {}
 
 class AdvancedMenu(discord.ui.View):
     def __init__(self, user_id=None, thumbnail_url=None, display_name=None, username=None, created_time_unix=None, bio=None, ban_status=None, html_url=None, full_body_avatar_url=None, timeout=180):
@@ -122,6 +127,7 @@ class AdvancedMenu(discord.ui.View):
 class Find(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+        self._search_inflight = set()
 
     async def find_roblox_id(self, username: str) -> Optional[int]:
         session = getattr(self.bot, 'session', None)
@@ -146,9 +152,9 @@ class Find(commands.Cog):
                 await session.close()
         return None
 
-    @commands.hybrid_command(name="find", description="Retrieve detailed information about a Roblox user.")
+    @commands.hybrid_command(name="roblox_user", description="Retrieve detailed information about a Roblox user.")
     @app_commands.describe(roblox_user="Enter a Roblox username or User ID")
-    async def find_roblox_user(self, ctx: commands.Context, roblox_user: str):
+    async def roblox_user_lookup(self, ctx: commands.Context, roblox_user: str):
         await ctx.defer()
         target = roblox_user.strip()
 
@@ -232,6 +238,64 @@ class Find(commands.Cog):
         except Exception as e:
             await ctx.send(f"An error occurred while fetching Roblox user information: {e}")
         finally:
+            if close_session and session and not session.closed:
+                await session.close()
+
+    @roblox_user_lookup.autocomplete("roblox_user")
+    async def roblox_user_autocomplete(
+        self,
+        interaction: discord.Interaction,
+        current: str,
+    ) -> List[app_commands.Choice[str]]:
+        query = current.strip().lower()
+        if len(query) < 3 or query.isdigit():
+            return []
+
+        now = monotonic()
+        cached = _search_cache.get(query)
+        if cached is not None:
+            ts, choices = cached
+            if now - ts <= SEARCH_CACHE_TTL:
+                return [c for c in choices if query in c.value.lower()][:25]
+            del _search_cache[query]
+
+        if query in self._search_inflight:
+            return []
+        self._search_inflight.add(query)
+
+        session = getattr(self.bot, 'session', None)
+        close_session = False
+        if session is None or session.closed:
+            session = aiohttp.ClientSession()
+            close_session = True
+
+        try:
+            async with session.get(
+                "https://users.roblox.com/v1/users/search",
+                params={"keyword": query, "limit": 10},
+                timeout=aiohttp.ClientTimeout(total=2.5),
+            ) as resp:
+                if resp.status != 200:
+                    return []
+                users = (await resp.json()).get("data", [])
+
+            choices = []
+            for user in users[:10]:
+                name = user.get("name")
+                if not name:
+                    continue
+                display = user.get("displayName") or name
+                label = f"{name} — {display}"[:100]
+                choices.append(app_commands.Choice(name=label, value=name))
+
+            while len(_search_cache) >= SEARCH_CACHE_MAX:
+                del _search_cache[next(iter(_search_cache))]
+            _search_cache[query] = (now, choices)
+            return choices
+        except Exception:
+            return []
+        finally:
+            self._search_inflight.discard(query)
             if close_session and session and not session.closed:
                 await session.close()
 
