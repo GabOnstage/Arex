@@ -11,7 +11,7 @@ PRIMARY_DOMAINS = {
     "x.com": "fixupx.com",
     "twitter.com": "fixupx.com",
     "tiktok.com": "tnktok.com",
-    "instagram.com": "zzinstagram.com",
+    "instagram.com": "axinstagram.com",
     "reddit.com": "vxreddit.com",
     "threads.net": "vxthreads.net",
 }
