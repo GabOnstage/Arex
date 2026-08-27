@@ -3,7 +3,7 @@ from discord.ext import commands
 from discord import app_commands
 import aiohttp
 import random
-from typing import Optional, Literal
+from typing import Optional
 
 BASE_TOD_API = "https://api.truthordarebot.xyz/v1"
 
@@ -25,12 +25,6 @@ FALLBACK_PROMPTS = {
         {"question": "Sing the chorus of your favorite song in a voice channel or send a voice message.", "rating": "PG"},
         {"question": "Text your best friend telling them you just won the lottery.", "rating": "PG"},
         {"question": "Speak in rhyme for the next 3 rounds of the game.", "rating": "PG"}
-    ],
-    "dare_nsfw": [
-        {"question": "Describe your ideal romantic date in vivid detail.", "rating": "R"},
-        {"question": "Confess your wildest romantic fantasy.", "rating": "R"},
-        {"question": "Send a flirty DM to the last person you texted.", "rating": "R"},
-        {"question": "Rate the attractiveness of everyone currently in chat on a scale of 1-10.", "rating": "R"}
     ],
     "nhie": [
         {"question": "Never have I ever ghosted someone.", "rating": "PG13"},
@@ -61,8 +55,7 @@ async def fetch_tod_prompt(bot: commands.Bot, category: str, rating: str = "pg13
         session = aiohttp.ClientSession()
         close_session = True
 
-    endpoint = "dare" if category == "dare_nsfw" else category
-    url = f"{BASE_TOD_API}/{endpoint}?rating={rating.lower()}"
+    url = f"{BASE_TOD_API}/{category}?rating={rating.lower()}"
 
     try:
         async with session.get(url, timeout=5) as response:
@@ -76,7 +69,6 @@ async def fetch_tod_prompt(bot: commands.Bot, category: str, rating: str = "pg13
         if close_session and session and not session.closed:
             await session.close()
 
-    # Fallback pool
     pool = FALLBACK_PROMPTS.get(category, FALLBACK_PROMPTS.get("truth", []))
     chosen = random.choice(pool)
     return {
@@ -86,21 +78,16 @@ async def fetch_tod_prompt(bot: commands.Bot, category: str, rating: str = "pg13
     }
 
 class TODView(discord.ui.View):
-    def __init__(self, bot: commands.Bot, current_rating: str = "pg13", is_nsfw_channel: bool = False, timeout=180):
+    def __init__(self, bot: commands.Bot, current_rating: str = "pg13", timeout=180):
         super().__init__(timeout=timeout)
         self.bot = bot
         self.rating = current_rating
-        self.is_nsfw_channel = is_nsfw_channel
 
     async def _handle_click(self, interaction: discord.Interaction, category: str, title: str, color: discord.Color):
         await interaction.response.defer()
-        target_rating = "r" if category == "dare_nsfw" else self.rating
-        if target_rating == "r" and not self.is_nsfw_channel:
-            target_rating = "pg13"
-
-        data = await fetch_tod_prompt(self.bot, category, target_rating)
+        data = await fetch_tod_prompt(self.bot, category, self.rating)
         question = data.get("question", "No question received.")
-        q_rating = data.get("rating", target_rating).upper()
+        q_rating = data.get("rating", self.rating).upper()
 
         embed = discord.Embed(
             title=title,
@@ -143,25 +130,15 @@ class TruthOrDare(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    def _is_nsfw(self, ctx: commands.Context) -> bool:
-        if ctx.guild is None:
-            return True  # DMs
-        return getattr(ctx.channel, "is_nsfw", lambda: False)()
-
     @commands.hybrid_command(name="truth", description="Get a random Truth question.")
     @app_commands.describe(rating="Rating filter for the question")
     @app_commands.choices(rating=[
         app_commands.Choice(name="PG (Family friendly)", value="pg"),
         app_commands.Choice(name="PG-13 (Standard)", value="pg13"),
-        app_commands.Choice(name="R (Mature/18+)", value="r")
     ])
     async def truth(self, ctx: commands.Context, rating: Optional[str] = "pg13"):
-        """Get a truth question."""
         await ctx.defer()
         selected_rating = rating.lower() if rating else "pg13"
-        if selected_rating == "r" and not self._is_nsfw(ctx):
-            await ctx.send("⚠️ R-rated prompts can only be used in Age-Restricted (NSFW) channels.", ephemeral=True)
-            return
 
         data = await fetch_tod_prompt(self.bot, "truth", selected_rating)
         question = data.get("question", "No question received.")
@@ -173,7 +150,7 @@ class TruthOrDare(commands.Cog):
             color=discord.Color.green()
         )
         embed.set_footer(text=f"Requested by {ctx.author.display_name} • Rating: {q_rating}")
-        view = TODView(self.bot, current_rating=selected_rating, is_nsfw_channel=self._is_nsfw(ctx))
+        view = TODView(self.bot, current_rating=selected_rating)
         await ctx.send(embed=embed, view=view)
 
     @commands.hybrid_command(name="dare", description="Get a random Dare challenge.")
@@ -181,15 +158,10 @@ class TruthOrDare(commands.Cog):
     @app_commands.choices(rating=[
         app_commands.Choice(name="PG (Family friendly)", value="pg"),
         app_commands.Choice(name="PG-13 (Standard)", value="pg13"),
-        app_commands.Choice(name="R (Mature/18+)", value="r")
     ])
     async def dare(self, ctx: commands.Context, rating: Optional[str] = "pg13"):
-        """Get a dare challenge."""
         await ctx.defer()
         selected_rating = rating.lower() if rating else "pg13"
-        if selected_rating == "r" and not self._is_nsfw(ctx):
-            await ctx.send("⚠️ R-rated prompts can only be used in Age-Restricted (NSFW) channels.", ephemeral=True)
-            return
 
         data = await fetch_tod_prompt(self.bot, "dare", selected_rating)
         question = data.get("question", "No question received.")
@@ -201,27 +173,7 @@ class TruthOrDare(commands.Cog):
             color=discord.Color.red()
         )
         embed.set_footer(text=f"Requested by {ctx.author.display_name} • Rating: {q_rating}")
-        view = TODView(self.bot, current_rating=selected_rating, is_nsfw_channel=self._is_nsfw(ctx))
-        await ctx.send(embed=embed, view=view)
-
-    @commands.hybrid_command(name="dare_nsfw", description="Get an 18+ spicy/mature Dare challenge (NSFW channels only).")
-    async def dare_nsfw(self, ctx: commands.Context):
-        """Get a mature dare challenge."""
-        if not self._is_nsfw(ctx):
-            await ctx.send("🔞 This command can only be used in Age-Restricted (NSFW) channels.", ephemeral=True)
-            return
-
-        await ctx.defer()
-        data = await fetch_tod_prompt(self.bot, "dare_nsfw", "r")
-        question = data.get("question", "No question received.")
-
-        embed = discord.Embed(
-            title="🔞 Spicy Dare (18+)",
-            description=f"### {question}",
-            color=discord.Color.magenta()
-        )
-        embed.set_footer(text=f"Requested by {ctx.author.display_name} • Rating: R")
-        view = TODView(self.bot, current_rating="r", is_nsfw_channel=True)
+        view = TODView(self.bot, current_rating=selected_rating)
         await ctx.send(embed=embed, view=view)
 
     @commands.hybrid_command(name="nhie", description="Get a random 'Never Have I Ever' statement.")
@@ -229,15 +181,10 @@ class TruthOrDare(commands.Cog):
     @app_commands.choices(rating=[
         app_commands.Choice(name="PG (Family friendly)", value="pg"),
         app_commands.Choice(name="PG-13 (Standard)", value="pg13"),
-        app_commands.Choice(name="R (Mature/18+)", value="r")
     ])
     async def nhie(self, ctx: commands.Context, rating: Optional[str] = "pg13"):
-        """Get a Never Have I Ever prompt."""
         await ctx.defer()
         selected_rating = rating.lower() if rating else "pg13"
-        if selected_rating == "r" and not self._is_nsfw(ctx):
-            await ctx.send("⚠️ R-rated prompts can only be used in Age-Restricted (NSFW) channels.", ephemeral=True)
-            return
 
         data = await fetch_tod_prompt(self.bot, "nhie", selected_rating)
         question = data.get("question", "No prompt received.")
@@ -249,7 +196,7 @@ class TruthOrDare(commands.Cog):
             color=discord.Color.purple()
         )
         embed.set_footer(text=f"Requested by {ctx.author.display_name} • Rating: {q_rating}")
-        view = TODView(self.bot, current_rating=selected_rating, is_nsfw_channel=self._is_nsfw(ctx))
+        view = TODView(self.bot, current_rating=selected_rating)
         await ctx.send(embed=embed, view=view)
 
     @commands.hybrid_command(name="wyr", description="Get a random 'Would You Rather' question.")
@@ -257,15 +204,10 @@ class TruthOrDare(commands.Cog):
     @app_commands.choices(rating=[
         app_commands.Choice(name="PG (Family friendly)", value="pg"),
         app_commands.Choice(name="PG-13 (Standard)", value="pg13"),
-        app_commands.Choice(name="R (Mature/18+)", value="r")
     ])
     async def wyr(self, ctx: commands.Context, rating: Optional[str] = "pg13"):
-        """Get a Would You Rather question."""
         await ctx.defer()
         selected_rating = rating.lower() if rating else "pg13"
-        if selected_rating == "r" and not self._is_nsfw(ctx):
-            await ctx.send("⚠️ R-rated prompts can only be used in Age-Restricted (NSFW) channels.", ephemeral=True)
-            return
 
         data = await fetch_tod_prompt(self.bot, "wyr", selected_rating)
         question = data.get("question", "No question received.")
@@ -277,7 +219,7 @@ class TruthOrDare(commands.Cog):
             color=discord.Color.gold()
         )
         embed.set_footer(text=f"Requested by {ctx.author.display_name} • Rating: {q_rating}")
-        view = TODView(self.bot, current_rating=selected_rating, is_nsfw_channel=self._is_nsfw(ctx))
+        view = TODView(self.bot, current_rating=selected_rating)
         await ctx.send(embed=embed, view=view)
 
     @commands.hybrid_command(name="paranoia", description="Get a random Paranoia question.")
@@ -285,15 +227,10 @@ class TruthOrDare(commands.Cog):
     @app_commands.choices(rating=[
         app_commands.Choice(name="PG (Family friendly)", value="pg"),
         app_commands.Choice(name="PG-13 (Standard)", value="pg13"),
-        app_commands.Choice(name="R (Mature/18+)", value="r")
     ])
     async def paranoia(self, ctx: commands.Context, rating: Optional[str] = "pg13"):
-        """Get a Paranoia question."""
         await ctx.defer()
         selected_rating = rating.lower() if rating else "pg13"
-        if selected_rating == "r" and not self._is_nsfw(ctx):
-            await ctx.send("⚠️ R-rated prompts can only be used in Age-Restricted (NSFW) channels.", ephemeral=True)
-            return
 
         data = await fetch_tod_prompt(self.bot, "paranoia", selected_rating)
         question = data.get("question", "No question received.")
@@ -305,7 +242,7 @@ class TruthOrDare(commands.Cog):
             color=discord.Color.dark_teal()
         )
         embed.set_footer(text=f"Requested by {ctx.author.display_name} • Rating: {q_rating}")
-        view = TODView(self.bot, current_rating=selected_rating, is_nsfw_channel=self._is_nsfw(ctx))
+        view = TODView(self.bot, current_rating=selected_rating)
         await ctx.send(embed=embed, view=view)
 
 async def setup(bot: commands.Bot):

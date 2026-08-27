@@ -22,23 +22,10 @@ SFW_CATEGORY_CHOICES = [
     app_commands.Choice(name="Propose", value="furry.propose"),
 ]
 
-NSFW_CATEGORY_CHOICES = [
-    app_commands.Choice(name="Butts", value="furry.butts"),
-    app_commands.Choice(name="Bulge", value="furry.bulge"),
-    app_commands.Choice(name="Andromorph", value="furry.yiff.andromorph"),
-    app_commands.Choice(name="Gay", value="furry.yiff.gay"),
-    app_commands.Choice(name="Gynomorph", value="furry.yiff.gynomorph"),
-    app_commands.Choice(name="Lesbian", value="furry.yiff.lesbian"),
-    app_commands.Choice(name="Straight", value="furry.yiff.straight"),
-]
-
 
 class Yiffy(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-
-    def _is_nsfw_allowed(self, ctx: commands.Context) -> bool:
-        return ctx.guild is not None and getattr(ctx.channel, "is_nsfw", lambda: False)()
 
     async def _fetch_random(self, category_db: str) -> Optional[dict]:
         session = getattr(self.bot, 'session', None)
@@ -60,10 +47,9 @@ class Yiffy(commands.Cog):
             if close_session and session and not session.closed:
                 await session.close()
 
-    def _build_embed(self, item: dict, display_name: str, nsfw: bool):
+    def _build_embed(self, item: dict, display_name: str):
         artists = ", ".join(a for a in item.get("artists", [])[:3] if a) or "Unknown artist"
-        prefix = "🔞" if nsfw else "🐾"
-        embed = discord.Embed(title=f"{prefix} {display_name}", color=discord.Color.blurple())
+        embed = discord.Embed(title=f"🐾 {display_name}", color=discord.Color.blurple())
         embed.set_image(url=item["url"])
         embed.set_footer(text=f"🎨 Artist: {artists}")
 
@@ -75,7 +61,7 @@ class Yiffy(commands.Cog):
             view.add_item(discord.ui.Button(label="Source", style=discord.ButtonStyle.link, url=source))
         return embed, view
 
-    async def _send_random(self, ctx: commands.Context, category_db: str, display_name: str, nsfw: bool = False):
+    async def _send_random(self, ctx: commands.Context, category_db: str, display_name: str):
         await ctx.defer()
         item = await self._fetch_random(category_db)
 
@@ -88,7 +74,7 @@ class Yiffy(commands.Cog):
             await ctx.send(embed=embed_error, ephemeral=True)
             return
 
-        embed, view = self._build_embed(item, display_name, nsfw)
+        embed, view = self._build_embed(item, display_name)
         await ctx.send(embed=embed, view=view)
 
     @commands.hybrid_command(name="yiffy_sfw", description="Fetch a random SFW furry image from the Yiffy API.")
@@ -98,17 +84,6 @@ class Yiffy(commands.Cog):
         category_db = category.value if category else "furry.fursuit"
         display_name = category.name if category else "Fursuit"
         await self._send_random(ctx, category_db, display_name)
-
-    @commands.hybrid_command(name="yiffy_nsfw", description="Fetch a random NSFW furry image from the Yiffy API (NSFW channels only).")
-    @app_commands.describe(category="Image category (defaults to Straight)")
-    @app_commands.choices(category=NSFW_CATEGORY_CHOICES)
-    async def yiffy_nsfw(self, ctx: commands.Context, category: Optional[app_commands.Choice[str]] = None):
-        if not self._is_nsfw_allowed(ctx):
-            await ctx.send("🔞 This command can only be used in Age-Restricted (NSFW) channels.", ephemeral=True)
-            return
-        category_db = category.value if category else "furry.yiff.straight"
-        display_name = category.name if category else "Straight"
-        await self._send_random(ctx, category_db, display_name, nsfw=True)
 
 
 async def setup(bot: commands.Bot):

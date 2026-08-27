@@ -4,12 +4,19 @@ import aiohttp
 
 IMDB_BASE = 'https://imdb.iamidiotareyoutoo.com'
 
-class IMDB(commands.Cog):
+class Movie(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    @commands.hybrid_command(name='imdb', description='Search IMDB for a title (uses unofficial API).')
-    async def imdb(self, ctx: commands.Context, *, query: str):
+    @commands.hybrid_group(name="movie", fallback="search", description="Movie & TV show search.")
+    async def movie_group(self, ctx: commands.Context, *, query: str):
+        await self._movie_search(ctx, query=query)
+
+    @movie_group.command(name="search", description="Search IMDB for a title (uses unofficial API).")
+    async def movie_search_cmd(self, ctx: commands.Context, *, query: str):
+        await self._movie_search(ctx, query=query)
+
+    async def _movie_search(self, ctx: commands.Context, *, query: str):
         await ctx.defer()
         q = query.strip()
         if not q:
@@ -35,8 +42,8 @@ class IMDB(commands.Cog):
                 year = top.get('year')
                 url = top.get('url') or top.get('link')
                 embed = discord.Embed(title=f"{title} ({year})", url=url or None, color=discord.Color.dark_blue())
-                embed.add_field(name='Rating', value=str(top.get('rating','N/A')), inline=True)
-                embed.add_field(name='Type', value=top.get('type','N/A'), inline=True)
+                embed.add_field(name='Rating', value=str(top.get('rating', 'N/A')), inline=True)
+                embed.add_field(name='Type', value=top.get('type', 'N/A'), inline=True)
                 desc = top.get('description') or top.get('summary')
                 if desc:
                     embed.add_field(name='Summary', value=desc[:1024], inline=False)
@@ -51,4 +58,4 @@ class IMDB(commands.Cog):
                 await session.close()
 
 async def setup(bot: commands.Bot):
-    await bot.add_cog(IMDB(bot))
+    await bot.add_cog(Movie(bot))

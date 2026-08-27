@@ -16,9 +16,16 @@ class Minecraft(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    @commands.hybrid_command(name="mcserver", description="Get Minecraft server status via api.mcsrvstat.us")
+    @commands.hybrid_group(name="mc", fallback="server", description="Minecraft-related commands.")
+    async def mc_group(self, ctx: commands.Context, server: str):
+        await self._mcserver(ctx, server)
+
+    @mc_group.command(name="server", description="Get Minecraft server status via api.mcsrvstat.us")
     @commands.cooldown(1, 5, commands.BucketType.user)
-    async def mcserver(self, ctx: commands.Context, server: str):
+    async def mcserver_cmd(self, ctx: commands.Context, server: str):
+        await self._mcserver(ctx, server)
+
+    async def _mcserver(self, ctx: commands.Context, server: str):
         await ctx.defer()
         server = server.strip()
         if not server:
@@ -79,7 +86,6 @@ class Minecraft(commands.Cog):
                 await session.close()
 
     async def _resolve_uuid(self, session: aiohttp.ClientSession, username: str):
-        """Resolve a Minecraft username to (name, dashed_uuid) via the Mojang API."""
         url = f'https://api.mojang.com/users/profiles/minecraft/{quote_plus(username)}'
         async with session.get(url, timeout=8) as resp:
             if resp.status != 200:
@@ -89,10 +95,10 @@ class Minecraft(commands.Cog):
                 return None
             return data.get('name', username), _format_uuid(data['id'])
 
-    @commands.hybrid_command(name="mcskin", description="Look up a Minecraft user and show their skin and avatar.")
+    @mc_group.command(name="skin", description="Look up a Minecraft user and show their skin and avatar.")
     @app_commands.describe(username="Minecraft username")
     @commands.cooldown(1, 5, commands.BucketType.user)
-    async def mcskin(self, ctx: commands.Context, username: str):
+    async def mcskin_cmd(self, ctx: commands.Context, username: str):
         await ctx.defer()
         username = username.strip()
         if not username:

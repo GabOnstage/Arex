@@ -13,32 +13,19 @@ TAG_CHOICES = [
     app_commands.Choice(name="Selfies", value="selfies"),
 ]
 
-NSFW_TAG_CHOICES = [
-    app_commands.Choice(name="Hentai", value="hentai"),
-    app_commands.Choice(name="Ass", value="ass"),
-    app_commands.Choice(name="Milf", value="milf"),
-    app_commands.Choice(name="Oral", value="oral"),
-    app_commands.Choice(name="Paizuri", value="paizuri"),
-    app_commands.Choice(name="Ecchi", value="ecchi"),
-    app_commands.Choice(name="Ero", value="ero"),
-]
-
 
 class Waifu(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    def _is_nsfw_allowed(self, ctx: commands.Context) -> bool:
-        return ctx.guild is not None and getattr(ctx.channel, "is_nsfw", lambda: False)()
-
-    async def _fetch_image(self, tag: str, animated: bool, nsfw: bool = False) -> Optional[dict]:
+    async def _fetch_image(self, tag: str, animated: bool) -> Optional[dict]:
         session = getattr(self.bot, 'session', None)
         close_session = False
         if session is None or session.closed:
             session = aiohttp.ClientSession()
             close_session = True
 
-        params = {"IncludedTags": tag, "IsNsfw": "true" if nsfw else "false"}
+        params = {"IncludedTags": tag, "IsNsfw": "false"}
         if animated:
             params["Gif"] = "true"
 
@@ -55,7 +42,7 @@ class Waifu(commands.Cog):
                 await session.close()
 
     @staticmethod
-    def _build_embed(item: dict, tag_value: str, prefix: str):
+    def _build_embed(item: dict, tag_value: str):
         try:
             color = discord.Color.from_str(item.get("dominantColor") or "#ff6fa3")
         except ValueError:
@@ -63,7 +50,7 @@ class Waifu(commands.Cog):
 
         artists = ", ".join(a.get("name", "Unknown") for a in item.get("artists", [])[:3]) or "Unknown artist"
 
-        embed = discord.Embed(title=f"{prefix} {tag_value.replace('-', ' ').title()}", color=color)
+        embed = discord.Embed(title=f"🌸 {tag_value.replace('-', ' ').title()}", color=color)
         embed.set_image(url=item["url"])
         embed.set_footer(text=f"🎨 Artist: {artists}")
         view = discord.ui.View(timeout=180)
@@ -72,9 +59,9 @@ class Waifu(commands.Cog):
             view.add_item(discord.ui.Button(label="Source", style=discord.ButtonStyle.link, url=source))
         return embed, view
 
-    async def _send_image(self, ctx: commands.Context, tag_value: str, animated: bool, nsfw: bool = False):
+    async def _send_image(self, ctx: commands.Context, tag_value: str, animated: bool):
         await ctx.defer()
-        item = await self._fetch_image(tag_value, animated, nsfw)
+        item = await self._fetch_image(tag_value, animated)
 
         if item is None:
             embed_error = discord.Embed(
@@ -85,8 +72,7 @@ class Waifu(commands.Cog):
             await ctx.send(embed=embed_error, ephemeral=True)
             return
 
-        prefix = "🔞" if nsfw else "🌸"
-        embed, view = self._build_embed(item, tag_value, prefix)
+        embed, view = self._build_embed(item, tag_value)
         await ctx.send(embed=embed, view=view)
 
     @commands.hybrid_command(name="waifu", description="Fetch a random SFW anime image from waifu.im.")
@@ -95,16 +81,6 @@ class Waifu(commands.Cog):
     async def waifu(self, ctx: commands.Context, tag: Optional[app_commands.Choice[str]] = None, animated: bool = False):
         tag_value = tag.value if tag else "waifu"
         await self._send_image(ctx, tag_value, animated)
-
-    @commands.hybrid_command(name="waifu_nsfw", description="Fetch a random NSFW anime image from waifu.im (NSFW channels only).")
-    @app_commands.describe(tag="NSFW image category (defaults to Hentai)", animated="Only GIFs instead of static images")
-    @app_commands.choices(tag=NSFW_TAG_CHOICES)
-    async def waifu_nsfw(self, ctx: commands.Context, tag: Optional[app_commands.Choice[str]] = None, animated: bool = False):
-        if not self._is_nsfw_allowed(ctx):
-            await ctx.send("🔞 This command can only be used in Age-Restricted (NSFW) channels.", ephemeral=True)
-            return
-        tag_value = tag.value if tag else "hentai"
-        await self._send_image(ctx, tag_value, animated, nsfw=True)
 
 
 async def setup(bot: commands.Bot):
