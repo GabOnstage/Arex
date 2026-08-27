@@ -8,9 +8,10 @@ class Movie(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    @commands.hybrid_group(name="movie", fallback="search", description="Movie & TV show search.")
-    async def movie_group(self, ctx: commands.Context, *, query: str):
-        await self._movie_search(ctx, query=query)
+    @commands.hybrid_group(name="movie", description="Movie & TV show search.")
+    async def movie_group(self, ctx: commands.Context):
+        if ctx.invoked_subcommand is None:
+            await ctx.send("Usage: `/movie search <query>`")
 
     @movie_group.command(name="search", description="Search IMDB for a title (uses unofficial API).")
     async def movie_search_cmd(self, ctx: commands.Context, *, query: str):

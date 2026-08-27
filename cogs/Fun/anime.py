@@ -23,9 +23,10 @@ class Anime(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    @commands.hybrid_group(name="anime", fallback="search", description="Anime-related commands.")
-    async def anime_group(self, ctx: commands.Context, *, title: str):
-        await self._anime_search(ctx, title=title)
+    @commands.hybrid_group(name="anime", description="Anime-related commands.")
+    async def anime_group(self, ctx: commands.Context):
+        if ctx.invoked_subcommand is None:
+            await ctx.send("Usage: `/anime search <title>` or `/anime quote`")
 
     @anime_group.command(name="search", description="Search for an anime on Kitsu.")
     @app_commands.describe(title="Anime title to search for")

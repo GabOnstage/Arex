@@ -16,9 +16,10 @@ class Minecraft(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    @commands.hybrid_group(name="mc", fallback="server", description="Minecraft-related commands.")
-    async def mc_group(self, ctx: commands.Context, server: str):
-        await self._mcserver(ctx, server)
+    @commands.hybrid_group(name="mc", description="Minecraft-related commands.")
+    async def mc_group(self, ctx: commands.Context):
+        if ctx.invoked_subcommand is None:
+            await ctx.send("Usage: `/mc server <address>` or `/mc skin <username>`")
 
     @mc_group.command(name="server", description="Get Minecraft server status via api.mcsrvstat.us")
     @commands.cooldown(1, 5, commands.BucketType.user)

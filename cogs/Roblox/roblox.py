@@ -231,9 +231,10 @@ class Roblox(commands.Cog):
         return None
 
     # ── /roblox (parent group) ───────────────────────────────────────────
-    @commands.hybrid_group(name="roblox", fallback="user", description="Roblox-related commands.")
-    async def roblox_group(self, ctx: commands.Context, roblox_user: str):
-        await self._roblox_user(ctx, roblox_user)
+    @commands.hybrid_group(name="roblox", description="Roblox-related commands.")
+    async def roblox_group(self, ctx: commands.Context):
+        if ctx.invoked_subcommand is None:
+            await ctx.send("Usage: `/roblox user <username>`, `/roblox badge <user>`, `/roblox rotector ...`")
 
     # ── /roblox user ─────────────────────────────────────────────────────
     @roblox_group.command(name="user", description="Retrieve detailed information about a Roblox user.")
