@@ -230,19 +230,77 @@ class Roblox(commands.Cog):
                 await session.close()
         return None
 
-    # ── /roblox (parent group) ───────────────────────────────────────────
+    async def _rotector_request(self, method: str, path: str, session: aiohttp.ClientSession, **kwargs):
+        url = f"{ROTECTOR_BASE}{path}"
+        headers = _get_rotector_auth()
+        if 'headers' in kwargs:
+            headers.update(kwargs.pop('headers'))
+        try:
+            async with session.request(method, url, headers=headers, timeout=10, **kwargs) as r:
+                if r.status == 429:
+                    retry = r.headers.get('Retry-After') or 'a moment'
+                    return {'error': f'Rate limited. Retry after {retry}s.'}
+                text = await r.text()
+                try:
+                    body = json.loads(text)
+                except Exception:
+                    body = text
+                if r.status != 200:
+                    msg = body.get('message') if isinstance(body, dict) else None
+                    return {'error': f'HTTP {r.status}: {msg or text[:200]}'}
+                return body
+        except Exception as e:
+            return {'error': str(e)}
+
+    async def _rotector_unwrap(self, resp):
+        if isinstance(resp, dict):
+            if 'error' in resp:
+                return None, str(resp['error'])
+            if resp.get('success') is True and 'data' in resp:
+                return resp['data'], None
+            return resp, None
+        return resp, None
+
+    async def _rotector_send_lookup(self, ctx: commands.Context, kind: str, target_id, path: str, session: aiohttp.ClientSession):
+        resp = await self._rotector_request('GET', path, session)
+        data, err = await self._rotector_unwrap(resp)
+        if err:
+            await ctx.send(f"Error: {err}")
+            return
+        out = json.dumps(data, indent=2)
+        if len(out) > 950:
+            await ctx.send(file=_make_file_from_json(data, f'{kind}_{target_id}.json'))
+        else:
+            label = 'Roblox User' if kind == 'roblox_user' else 'Roblox Group'
+            await ctx.send(embed=_flag_embed(label, target_id, data if isinstance(data, dict) else {}))
+
+    async def _parse_ids(self, ctx: commands.Context, ids: str, max_ids: int, label: str) -> Optional[list]:
+        raw = [x for x in ids.replace(',', ' ').split() if x.strip()]
+        id_list = []
+        for x in raw[:max_ids]:
+            if not x.isdigit():
+                await ctx.send(f"Invalid ID: `{x}`. IDs must be numeric.")
+                return None
+            id_list.append(x)
+        if not id_list:
+            await ctx.send(f'Provide at least one {label} ID (max {max_ids}).')
+            return None
+        if len(raw) > max_ids:
+            await ctx.send(f"⚠️ Truncated to the first {max_ids} IDs.")
+        return id_list
+
+    # ════════════════════════════════════════════════════════════════════════
+    # /roblox parent group
+    # ════════════════════════════════════════════════════════════════════════
     @commands.hybrid_group(name="roblox", description="Roblox-related commands.")
     async def roblox_group(self, ctx: commands.Context):
         if ctx.invoked_subcommand is None:
-            await ctx.send("Usage: `/roblox user <username>`, `/roblox badge <user>`, `/roblox rotector ...`")
+            await ctx.send("Usage: `/roblox user`, `/roblox badge`, `/roblox rotector-*`")
 
     # ── /roblox user ─────────────────────────────────────────────────────
     @roblox_group.command(name="user", description="Retrieve detailed information about a Roblox user.")
     @app_commands.describe(roblox_user="Enter a Roblox username or User ID")
     async def roblox_user_cmd(self, ctx: commands.Context, roblox_user: str):
-        await self._roblox_user(ctx, roblox_user)
-
-    async def _roblox_user(self, ctx: commands.Context, roblox_user: str):
         await ctx.defer()
         target = roblox_user.strip()
 
@@ -431,78 +489,8 @@ class Roblox(commands.Cog):
             if close_session and session and not session.closed:
                 await session.close()
 
-    # ── /roblox rotector (subgroup) ──────────────────────────────────────
-    @roblox_group.group(name="rotector", description="Rotector safety lookups for Roblox & Discord.")
-    async def rotector_group(self, ctx: commands.Context):
-        if ctx.invoked_subcommand is None:
-            await ctx.send("Use `/roblox rotector user`, `/roblox rotector group`, or `/roblox rotector discord`.")
-
-    async def _rotector_request(self, method: str, path: str, session: aiohttp.ClientSession, **kwargs):
-        url = f"{ROTECTOR_BASE}{path}"
-        headers = _get_rotector_auth()
-        if 'headers' in kwargs:
-            headers.update(kwargs.pop('headers'))
-        try:
-            async with session.request(method, url, headers=headers, timeout=10, **kwargs) as r:
-                if r.status == 429:
-                    retry = r.headers.get('Retry-After') or 'a moment'
-                    return {'error': f'Rate limited. Retry after {retry}s.'}
-                text = await r.text()
-                try:
-                    body = json.loads(text)
-                except Exception:
-                    body = text
-                if r.status != 200:
-                    msg = body.get('message') if isinstance(body, dict) else None
-                    return {'error': f'HTTP {r.status}: {msg or text[:200]}'}
-                return body
-        except Exception as e:
-            return {'error': str(e)}
-
-    async def _rotector_unwrap(self, resp):
-        if isinstance(resp, dict):
-            if 'error' in resp:
-                return None, str(resp['error'])
-            if resp.get('success') is True and 'data' in resp:
-                return resp['data'], None
-            return resp, None
-        return resp, None
-
-    async def _rotector_send_lookup(self, ctx: commands.Context, kind: str, target_id, path: str, session: aiohttp.ClientSession):
-        resp = await self._rotector_request('GET', path, session)
-        data, err = await self._rotector_unwrap(resp)
-        if err:
-            await ctx.send(f"Error: {err}")
-            return
-        out = json.dumps(data, indent=2)
-        if len(out) > 950:
-            await ctx.send(file=_make_file_from_json(data, f'{kind}_{target_id}.json'))
-        else:
-            label = 'Roblox User' if kind == 'roblox_user' else 'Roblox Group'
-            await ctx.send(embed=_flag_embed(label, target_id, data if isinstance(data, dict) else {}))
-
-    async def _parse_ids(self, ctx: commands.Context, ids: str, max_ids: int, label: str) -> Optional[list]:
-        raw = [x for x in ids.replace(',', ' ').split() if x.strip()]
-        id_list = []
-        for x in raw[:max_ids]:
-            if not x.isdigit():
-                await ctx.send(f"Invalid ID: `{x}`. IDs must be numeric.")
-                return None
-            id_list.append(x)
-        if not id_list:
-            await ctx.send(f'Provide at least one {label} ID (max {max_ids}).')
-            return None
-        if len(raw) > max_ids:
-            await ctx.send(f"⚠️ Truncated to the first {max_ids} IDs.")
-        return id_list
-
-    # ── /roblox rotector user ────────────────────────────────────────────
-    @rotector_group.group(name="user", description="Rotector lookups for Roblox users.")
-    async def rotector_user_group(self, ctx: commands.Context):
-        if ctx.invoked_subcommand is None:
-            await ctx.send("Usage: `/roblox rotector user <user_id>`")
-
-    @rotector_user_group.command(name="info", description="Get Rotector flag info for a Roblox user by ID")
+    # ── /roblox rotector-user ────────────────────────────────────────────
+    @roblox_group.command(name="rotector-user", description="Get Rotector flag info for a Roblox user by ID")
     async def rotector_user_info(self, ctx: commands.Context, user_id: int):
         await ctx.defer()
         session, close_session = await self._get_session()
@@ -512,7 +500,7 @@ class Roblox(commands.Cog):
             if close_session:
                 await session.close()
 
-    @rotector_user_group.command(name="plain", description="Get only flag status for Roblox user (plaintext)")
+    @roblox_group.command(name="rotector-user-plain", description="Get only flag status for Roblox user (plaintext)")
     async def rotector_user_plain(self, ctx: commands.Context, user_id: int):
         await ctx.defer()
         session, close_session = await self._get_session()
@@ -528,7 +516,7 @@ class Roblox(commands.Cog):
             if close_session:
                 await session.close()
 
-    @rotector_user_group.command(name="batch", description="Batch lookup Roblox users (comma/space separated IDs, max 100)")
+    @roblox_group.command(name="rotector-user-batch", description="Batch lookup Roblox users (comma/space separated IDs, max 100)")
     async def rotector_user_batch(self, ctx: commands.Context, *, ids: str):
         await ctx.defer()
         id_list = await self._parse_ids(ctx, ids, 100, 'user')
@@ -547,7 +535,7 @@ class Roblox(commands.Cog):
             if close_session:
                 await session.close()
 
-    @rotector_user_group.command(name="status-batch", description="Batch user flag statuses, status only (max 100)")
+    @roblox_group.command(name="rotector-user-status-batch", description="Batch user flag statuses, status only (max 100)")
     async def rotector_user_status_batch(self, ctx: commands.Context, *, ids: str):
         await ctx.defer()
         id_list = await self._parse_ids(ctx, ids, 100, 'user')
@@ -566,7 +554,7 @@ class Roblox(commands.Cog):
             if close_session:
                 await session.close()
 
-    @rotector_user_group.command(name="discord", description="Get Discord accounts linked to a Roblox user")
+    @roblox_group.command(name="rotector-user-discord", description="Get Discord accounts linked to a Roblox user")
     async def rotector_user_discord(self, ctx: commands.Context, user_id: int):
         await ctx.defer()
         session, close_session = await self._get_session()
@@ -581,13 +569,8 @@ class Roblox(commands.Cog):
             if close_session:
                 await session.close()
 
-    # ── /roblox rotector group ───────────────────────────────────────────
-    @rotector_group.group(name="group", description="Rotector lookups for Roblox groups.")
-    async def rotector_grp_group(self, ctx: commands.Context):
-        if ctx.invoked_subcommand is None:
-            await ctx.send("Usage: `/roblox rotector group <group_id>`")
-
-    @rotector_grp_group.command(name="info", description="Get Rotector flag info for a Roblox group by ID")
+    # ── /roblox rotector-group ───────────────────────────────────────────
+    @roblox_group.command(name="rotector-group", description="Get Rotector flag info for a Roblox group by ID")
     async def rotector_group_info(self, ctx: commands.Context, group_id: int):
         await ctx.defer()
         session, close_session = await self._get_session()
@@ -597,7 +580,7 @@ class Roblox(commands.Cog):
             if close_session:
                 await session.close()
 
-    @rotector_grp_group.command(name="plain", description="Get only flag status for Roblox group (plaintext)")
+    @roblox_group.command(name="rotector-group-plain", description="Get only flag status for Roblox group (plaintext)")
     async def rotector_group_plain(self, ctx: commands.Context, group_id: int):
         await ctx.defer()
         session, close_session = await self._get_session()
@@ -613,7 +596,7 @@ class Roblox(commands.Cog):
             if close_session:
                 await session.close()
 
-    @rotector_grp_group.command(name="batch", description="Batch lookup Roblox groups (comma/space separated IDs, max 100)")
+    @roblox_group.command(name="rotector-group-batch", description="Batch lookup Roblox groups (comma/space separated IDs, max 100)")
     async def rotector_group_batch(self, ctx: commands.Context, *, ids: str):
         await ctx.defer()
         id_list = await self._parse_ids(ctx, ids, 100, 'group')
@@ -632,7 +615,7 @@ class Roblox(commands.Cog):
             if close_session:
                 await session.close()
 
-    @rotector_grp_group.command(name="tracked", description="Get tracked (flagged) users in a Roblox group")
+    @roblox_group.command(name="rotector-group-tracked", description="Get tracked (flagged) users in a Roblox group")
     @app_commands.describe(group_id="Roblox group ID", limit="Results per page (1-100)")
     async def rotector_group_tracked(self, ctx: commands.Context, group_id: int, limit: int = 20):
         await ctx.defer()
@@ -649,13 +632,8 @@ class Roblox(commands.Cog):
             if close_session:
                 await session.close()
 
-    # ── /roblox rotector discord ─────────────────────────────────────────
-    @rotector_group.group(name="discord", description="Rotector lookups for Discord users.")
-    async def rotector_disc_group(self, ctx: commands.Context):
-        if ctx.invoked_subcommand is None:
-            await ctx.send("Usage: `/roblox rotector discord <discord_id>`")
-
-    @rotector_disc_group.command(name="info", description="Get Rotector info for a Discord user by ID")
+    # ── /roblox rotector-discord ─────────────────────────────────────────
+    @roblox_group.command(name="rotector-discord", description="Get Rotector info for a Discord user by ID")
     async def rotector_discord_info(self, ctx: commands.Context, discord_id: str):
         await ctx.defer()
         discord_id = discord_id.strip()
@@ -674,7 +652,7 @@ class Roblox(commands.Cog):
             if close_session:
                 await session.close()
 
-    @rotector_disc_group.command(name="batch", description="Batch lookup Discord users (IDs comma/space separated, max 100)")
+    @roblox_group.command(name="rotector-discord-batch", description="Batch lookup Discord users (IDs comma/space separated, max 100)")
     async def rotector_discord_batch(self, ctx: commands.Context, *, ids: str):
         await ctx.defer()
         id_list = await self._parse_ids(ctx, ids, 100, 'Discord')
