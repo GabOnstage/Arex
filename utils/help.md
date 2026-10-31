@@ -65,6 +65,7 @@ Minecraft:
 <___anime-movies1-end___>
 
 <___utilities1-start___>
+- `/embed`: Fix X/Twitter, TikTok, Instagram, Reddit, and Threads links.
 - `/color`: View color RGB/HEX info and palette preview.
 - `/ping`: Check bot latency and response time.
 - `/echo`: Safely repeat a message.
