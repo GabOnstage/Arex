@@ -1,11 +1,11 @@
+import html
+import time
+from typing import Optional, Union
+
 import aiohttp
 import discord
-from discord.ext import commands
 from discord import app_commands
-from typing import Optional
-import html
-
-API_URL_INSULT = "https://evilinsult.com/generate_insult.php?lang=en&type=json"
+from discord.ext import commands
 
 class Insult(commands.Cog):
     def __init__(self, bot: commands.Bot):
@@ -16,29 +16,38 @@ class Insult(commands.Cog):
             allowed_contexts=app_commands.AppCommandContext(guild=True, dm_channel=True, private_channel=True),
             allowed_installs=app_commands.AppInstallationType(guild=True, user=True)
         )
-        try:
-            self.bot.tree.add_command(self.ctx_menu)
-        except Exception:
-            pass
+        self.bot.tree.add_command(self.ctx_menu)
 
-    def cog_unload(self):
-        try:
-            self.bot.tree.remove_command(self.ctx_menu.name, type=self.ctx_menu.type)
-        except Exception:
-            pass
+    async def cog_unload(self):
+        self.bot.tree.remove_command(self.ctx_menu.name, type=self.ctx_menu.type)
 
     async def _fetch_insult(self) -> Optional[str]:
         session = getattr(self.bot, 'session', None)
         close_session = False
+        
         if session is None or session.closed:
             session = aiohttp.ClientSession()
             close_session = True
 
+        cache_buster = int(time.time() * 1000)
+        api_url = f"https://evilinsult.com/generate_insult.php?type=plain&type=json&lang=en&_={cache_buster}"
+
         try:
-            async with session.get(API_URL_INSULT, timeout=5) as response:
+            async with session.get(api_url, timeout=5) as response:
                 if response.status == 200:
                     insult_data = await response.json()
-                    return html.unescape(insult_data.get('insult', ''))
+                    raw_insult = insult_data.get('insult', '')
+                    
+                    # Safely handle double/triple escaped HTML from the API
+                    # e.g., if the API sends "&amp;quot;", one pass makes it "&quot;", the second makes it '"'
+                    while True:
+                        unescaped = html.unescape(raw_insult)
+                        if unescaped == raw_insult:
+                            break
+                        raw_insult = unescaped
+                    
+                    # Return the fully cleaned string, stripping any trailing/leading spaces
+                    return raw_insult.strip()
                 return None
         except Exception:
             return None
@@ -49,6 +58,7 @@ class Insult(commands.Cog):
     async def handle_insult_context_menu(self, interaction: discord.Interaction, user: discord.User):
         await interaction.response.defer()
         insult = await self._fetch_insult()
+        
         if insult:
             await interaction.followup.send(f"{user.mention}, {insult}")
         else:
@@ -58,7 +68,9 @@ class Insult(commands.Cog):
     @app_commands.allowed_installs(guilds=True, users=True)
     @app_commands.allowed_contexts(guilds=True, dms=True, private_channels=True)
     @app_commands.describe(user="Select a user to insult")
-    async def insult(self, ctx: commands.Context, user: Optional[discord.Member] = None):
+    async def insult(self, ctx: commands.Context, user: Optional[Union[discord.Member, discord.User]] = None):
+        await ctx.defer() 
+        
         insult = await self._fetch_insult()
         if insult:
             if user:
@@ -72,6 +84,7 @@ class Insult(commands.Cog):
                 color=discord.Color.red()
             )
             await ctx.send(embed=error_embed)
+
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(Insult(bot))
