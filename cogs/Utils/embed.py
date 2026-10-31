@@ -864,6 +864,15 @@ class EmbedFix(commands.Cog):
             if close_session and session and not session.closed:
                 await session.close()
 
+    @staticmethod
+    def _drop_video_thumbnail(embed: discord.Embed, status: dict):
+        videos = (status.get("media") or {}).get("videos") or []
+        if not videos or not isinstance(videos[0], dict):
+            return
+        thumbnail = videos[0].get("thumbnail_url")
+        if thumbnail and getattr(embed.image, "url", None) == thumbnail:
+            embed.set_image(url=None)
+
     async def _send_tweet(self, sender, status: dict, embed: discord.Embed, view, guild, session, allow_file: bool = True):
         video_url = self._primary_video_url(status)
         file = None
@@ -871,6 +880,9 @@ class EmbedFix(commands.Cog):
             buffer = await self._download_media(session, video_url, self._upload_limit(guild))
             if buffer is not None:
                 file = discord.File(buffer, filename="video.mp4")
+                # The attachment is already the playable media; don't repeat
+                # the same frame as a static embed image.
+                self._drop_video_thumbnail(embed, status)
 
         payload = {
             "embed": embed,
