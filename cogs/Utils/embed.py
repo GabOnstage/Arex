@@ -36,6 +36,17 @@ PROFILE_API = "https://api.fxtwitter.com/2/profile/{username}"
 
 MAX_VIDEO_BYTES = 10 * 1024 * 1024
 
+# Components V2 (discord.py 2.6+) lets a bot render video/GIF media inside a
+# card via MediaGallery. Classic embeds cannot contain a video.
+COMPONENTS_V2 = (
+    hasattr(discord.ui, "LayoutView")
+    and hasattr(discord.ui, "MediaGallery")
+    and hasattr(discord.ui, "Container")
+    and hasattr(discord.ui, "ActionRow")
+)
+
+_LayoutViewBase = getattr(discord.ui, "LayoutView", discord.ui.View)
+
 RESERVED_X_PATHS = frozenset({
     "i", "status", "home", "explore", "notifications", "messages", "settings",
     "compose", "search", "hashtag", "login", "logout", "signup", "tos",
@@ -127,7 +138,7 @@ def _format_exact(value) -> str:
 
 
 class LanguageSelect(discord.ui.Select):
-    def __init__(self, view: "TweetView", selected: str = None):
+    def __init__(self, view, selected: str = None, row: int = 0):
         options = [
             discord.SelectOption(
                 label=label,
@@ -149,7 +160,7 @@ class LanguageSelect(discord.ui.Select):
             max_values=1,
             options=options,
             custom_id="fx:translate",
-            row=0,
+            row=row,
         )
         self.view_ref = view
 
@@ -157,14 +168,12 @@ class LanguageSelect(discord.ui.Select):
         await self.view_ref.handle_translate(interaction, self.values[0])
 
 
-class ReplyView(discord.ui.View):
-    """Base view with a shared author/moderator delete button."""
+class ReplyActionsMixin:
+    """Shared author/moderator delete behavior for reply cards."""
 
-    def __init__(self, cog: "EmbedFix", author_id: int, original_message_id: int = None):
-        super().__init__(timeout=None)
-        self.cog = cog
-        self.author_id = author_id
-        self.original_message_id = original_message_id
+    cog: "EmbedFix"
+    author_id: int
+    original_message_id: int
 
     async def handle_delete(self, interaction: discord.Interaction):
         if not self.cog._can_delete(interaction, self.author_id):
@@ -192,7 +201,7 @@ class ReplyView(discord.ui.View):
             except discord.HTTPException:
                 pass
 
-    def _add_delete_button(self, row: int = 1):
+    def _make_delete_button(self, row: int = None):
         delete_button = discord.ui.Button(
             style=discord.ButtonStyle.danger,
             emoji="🗑️",
@@ -200,7 +209,20 @@ class ReplyView(discord.ui.View):
             custom_id="fx:delete",
         )
         delete_button.callback = self.handle_delete
-        self.add_item(delete_button)
+        return delete_button
+
+
+class ReplyView(ReplyActionsMixin, discord.ui.View):
+    """Classic rich-embed view with a shared author/moderator delete button."""
+
+    def __init__(self, cog: "EmbedFix", author_id: int, original_message_id: int = None):
+        super().__init__(timeout=None)
+        self.cog = cog
+        self.author_id = author_id
+        self.original_message_id = original_message_id
+
+    def _add_delete_button(self, row: int = 1):
+        self.add_item(self._make_delete_button(row=row))
 
 
 class TweetView(ReplyView):
@@ -221,7 +243,7 @@ class TweetView(ReplyView):
         self.post_url = post_url
         self.color = color if color is not None else discord.Color.random().value
 
-        self.add_item(LanguageSelect(self, selected))
+        self.add_item(LanguageSelect(self, selected, row=0))
         self.add_item(
             discord.ui.Button(
                 label="Go to post",
@@ -280,6 +302,89 @@ class TweetView(ReplyView):
             pass
 
 
+class TweetLayoutView(ReplyActionsMixin, _LayoutViewBase):
+    """Components V2 card whose MediaGallery plays videos/GIFs inline."""
+
+    def __init__(
+        self,
+        cog: "EmbedFix",
+        base_status: dict,
+        tweet_id: str,
+        post_url: str,
+        author_id: int,
+        original_message_id: int = None,
+        color: int = None,
+        selected: str = None,
+    ):
+        super().__init__(timeout=None)
+        self.cog = cog
+        self.author_id = author_id
+        self.original_message_id = original_message_id
+        self.base_status = base_status
+        self.tweet_id = tweet_id
+        self.post_url = post_url
+        self.color = color if color is not None else discord.Color.random().value
+
+        self.add_item(cog._build_layout_container(base_status, self.color))
+
+        row = discord.ui.ActionRow()
+        row.add_item(LanguageSelect(self, selected, row=None))
+        row.add_item(
+            discord.ui.Button(
+                label="Go to post",
+                style=discord.ButtonStyle.link,
+                url=post_url,
+                emoji="🔗",
+            )
+        )
+        row.add_item(self._make_delete_button())
+        self.add_item(row)
+
+    def _rebuild(self, selected: str = None, status: dict = None) -> "TweetLayoutView":
+        return TweetLayoutView(
+            self.cog,
+            status or self.base_status,
+            self.tweet_id,
+            self.post_url,
+            self.author_id,
+            self.original_message_id,
+            self.color,
+            selected,
+        )
+
+    async def handle_translate(self, interaction: discord.Interaction, language: str):
+        await interaction.response.defer()
+
+        if language == "original":
+            try:
+                await interaction.message.edit(view=self._rebuild("original"))
+            except discord.HTTPException:
+                pass
+            return
+
+        post_language = (self.base_status.get("lang") or "").lower()
+        if language == post_language:
+            await interaction.followup.send(
+                f"This post is already in {LANGUAGE_NAMES.get(language, language)}.",
+                ephemeral=True,
+            )
+            return
+
+        status = await self.cog._fetch_status(self.tweet_id, lang=language)
+        translation = (status or {}).get("translation") or {}
+        if not translation.get("text"):
+            await interaction.followup.send(
+                "Translation isn't available for this post.",
+                ephemeral=True,
+            )
+            return
+
+        try:
+            await interaction.message.edit(view=self._rebuild(language, status=status))
+        except discord.HTTPException:
+            pass
+
+
 class ProfileView(ReplyView):
     def __init__(
         self,
@@ -304,7 +409,6 @@ class ProfileView(ReplyView):
             )
         )
         self._add_delete_button(row=0)
-
 
 
 class EmbedFix(commands.Cog):
@@ -423,7 +527,6 @@ class EmbedFix(commands.Cog):
             return None
         return user
 
-
     @staticmethod
     def _is_wrapped(content: str, match: re.Match) -> bool:
         start, end = match.span()
@@ -449,7 +552,7 @@ class EmbedFix(commands.Cog):
             segments = [segment for segment in urlsplit(url).path.split("/") if segment]
             if len(segments) != 1:
                 continue
-            username = segments[0]
+            username = segments[0].lstrip("@")
             if not re.fullmatch(r"[A-Za-z0-9_]{1,15}", username):
                 continue
             if username.lower() in RESERVED_X_PATHS:
@@ -626,6 +729,127 @@ class EmbedFix(commands.Cog):
         except (aiohttp.ClientError, asyncio.TimeoutError):
             return None
 
+    def _gallery_items(self, status: dict):
+        media = status.get("media") or {}
+        author = status.get("author") or {}
+        name = author.get("name") or author.get("screen_name") or "X"
+        name = _truncate(str(name), 180)
+
+        items = []
+        seen = set()
+
+        for video in media.get("videos") or []:
+            if not isinstance(video, dict):
+                continue
+            url = self._primary_video_url({"media": {"videos": [video]}})
+            if not url or url in seen:
+                continue
+            seen.add(url)
+            media_type = str(video.get("type") or "video").lower()
+            label = "GIF" if media_type == "gif" else "Video"
+            items.append(
+                discord.MediaGalleryItem(
+                    url,
+                    description=_truncate(f"{label} from {name}", 256),
+                )
+            )
+
+        for photo in media.get("photos") or []:
+            if not isinstance(photo, dict):
+                continue
+            url = photo.get("url")
+            if not url or url in seen:
+                continue
+            seen.add(url)
+            items.append(
+                discord.MediaGalleryItem(
+                    url,
+                    description=_truncate(f"Image from {name}", 256),
+                )
+            )
+
+        return items[:10]
+
+    def _build_body(self, status: dict) -> str:
+        text = (status.get("text") or "").strip()
+        translation = status.get("translation") or {}
+        translated = (translation.get("text") or "").strip()
+
+        if translated:
+            source = translation.get("source_lang_en") or translation.get("source_lang") or "another language"
+            body = f"📑 **Translated from {source}**\n\n{translated}"
+            if text:
+                body += "\n\n> **Original**\n" + "\n".join(f"> {line}" for line in text.splitlines())
+        else:
+            body = text
+
+        quote = status.get("quote")
+        if quote:
+            quote_block = self._quote_block(quote)
+            if quote_block:
+                body = f"{body}\n\n{quote_block}" if body else quote_block
+
+        return body
+
+    def _build_layout_container(self, status: dict, color: int = None):
+        author = status.get("author") or {}
+        screen_name = author.get("screen_name") or "i"
+        name = author.get("name") or screen_name
+
+        identity = f"**{discord.utils.escape_markdown(name)}** (@{discord.utils.escape_markdown(screen_name)})"
+        if (author.get("verification") or {}).get("verified"):
+            identity += " ✔️"
+
+        body = self._build_body(status)
+        poll = status.get("poll")
+        if poll:
+            poll_name, poll_value = self._poll_field(poll)
+            if poll_name:
+                block = f"**{poll_name}**\n{poll_value}"
+                body = f"{body}\n\n{block}" if body else block
+
+        header = identity + (f"\n\n{body}" if body else "")
+        header = _truncate(header, 4000)
+
+        children = []
+        avatar = author.get("avatar_url")
+        if avatar:
+            children.append(
+                discord.ui.Section(
+                    header,
+                    accessory=discord.ui.Thumbnail(
+                        avatar,
+                        description=f"{name} profile photo",
+                    ),
+                )
+            )
+        else:
+            children.append(discord.ui.TextDisplay(header))
+
+        gallery = self._gallery_items(status)
+        if gallery:
+            children.append(discord.ui.MediaGallery(*gallery))
+
+        footer = (
+            f"💬 {_format_count(status.get('replies'))}   "
+            f"🔁 {_format_count(status.get('reposts'))}   "
+            f"❤️ {_format_count(status.get('likes'))}   "
+            f"👁 {_format_count(status.get('views'))}"
+        )
+        children.append(discord.ui.Separator())
+        children.append(discord.ui.TextDisplay(f"-# {footer}"))
+
+        credit = "-# X / Twitter"
+        created = status.get("created_timestamp")
+        if created:
+            credit += f" • <t:{int(created)}:R>"
+        children.append(discord.ui.TextDisplay(credit))
+
+        return discord.ui.Container(
+            *children,
+            accent_color=color if color is not None else discord.Color.random().value,
+        )
+
     def _build_embed(self, status: dict, color: int = None) -> discord.Embed:
         author = status.get("author") or {}
         screen_name = author.get("screen_name") or "i"
@@ -644,23 +868,8 @@ class EmbedFix(commands.Cog):
         )
         embed.url = self._canonical_post_url(status)
 
-        text = (status.get("text") or "").strip()
-        translation = status.get("translation") or {}
-        translated = (translation.get("text") or "").strip()
-
-        if translated:
-            source = translation.get("source_lang_en") or translation.get("source_lang") or "another language"
-            body = f"📑 **Translated from {source}**\n\n{translated}"
-            if text:
-                body += "\n\n> **Original**\n" + "\n".join(f"> {line}" for line in text.splitlines())
-        else:
-            body = text
-
+        body = self._build_body(status)
         quote = status.get("quote")
-        if quote:
-            quote_block = self._quote_block(quote)
-            if quote_block:
-                body = f"{body}\n\n{quote_block}" if body else quote_block
 
         if body.strip():
             embed.description = _truncate(body, 4096)
@@ -685,8 +894,7 @@ class EmbedFix(commands.Cog):
         )
         embed.set_footer(text=footer[:2048])
 
-        # Let Discord render/localize the post time in the footer. The
-        # <t:...> markup does not render inside embed footers.
+        # Let Discord render/localize the post time in the footer.
         created = status.get("created_timestamp")
         if created:
             try:
@@ -814,8 +1022,6 @@ class EmbedFix(commands.Cog):
         return None
 
     async def _set_suppressed(self, message: discord.Message, suppress: bool):
-        # discord.py moved the `suppress` keyword between Message.edit and
-        # PartialMessage.edit across versions, so try both.
         try:
             await message.edit(suppress=suppress)
         except TypeError:
@@ -880,8 +1086,6 @@ class EmbedFix(commands.Cog):
             buffer = await self._download_media(session, video_url, self._upload_limit(guild))
             if buffer is not None:
                 file = discord.File(buffer, filename="video.mp4")
-                # The attachment is already the playable media; don't repeat
-                # the same frame as a static embed image.
                 self._drop_video_thumbnail(embed, status)
 
         payload = {
@@ -903,9 +1107,6 @@ class EmbedFix(commands.Cog):
             except discord.HTTPException:
                 return None, None
 
-        # Bots cannot set embed.video. When the file could not be attached,
-        # post the raw MP4 link in its own message (no embed) so Discord can
-        # unfurl it into a playable video.
         video_post = None
         if file is None and video_url:
             try:
@@ -930,6 +1131,27 @@ class EmbedFix(commands.Cog):
                 if status is None:
                     await self._reply_fixed_link(message, url)
                     return
+
+                if COMPONENTS_V2:
+                    try:
+                        view = TweetLayoutView(
+                            self,
+                            status,
+                            tweet_id,
+                            self._canonical_post_url(status),
+                            message.author.id,
+                            message.id,
+                        )
+                        reply = await message.reply(
+                            view=view,
+                            mention_author=False,
+                            allowed_mentions=discord.AllowedMentions.none(),
+                        )
+                        self._track_reply(message.id, message.channel.id, reply.id)
+                        await self._suppress(message)
+                        return
+                    except discord.HTTPException:
+                        pass
 
                 embed = self._build_embed(status)
                 view = TweetView(
@@ -1089,7 +1311,6 @@ class EmbedFix(commands.Cog):
     @app_commands.describe(link=f"Link to fix ({SUPPORTED_PLATFORMS})")
     @commands.cooldown(1, 3, commands.BucketType.user)
     async def embed(self, ctx: commands.Context, link: str):
-        # Defer immediately so slow API calls cannot make the interaction time out.
         await ctx.defer()
         link = link.strip()
 
@@ -1101,6 +1322,23 @@ class EmbedFix(commands.Cog):
                 if status is None:
                     await ctx.send("I couldn't fetch that post.")
                     return
+
+                if COMPONENTS_V2:
+                    try:
+                        view = TweetLayoutView(
+                            self,
+                            status,
+                            x_link[1],
+                            self._canonical_post_url(status),
+                            ctx.author.id,
+                        )
+                        await ctx.send(
+                            view=view,
+                            allowed_mentions=discord.AllowedMentions.none(),
+                        )
+                        return
+                    except discord.HTTPException:
+                        pass
 
                 embed = self._build_embed(status)
                 view = TweetView(
@@ -1193,7 +1431,6 @@ class EmbedFix(commands.Cog):
             await ctx.send(embed=embed, view=view, allowed_mentions=discord.AllowedMentions.none())
         except discord.HTTPException:
             await ctx.send(self._profile_url(profile))
-
 
 
 async def setup(bot: commands.Bot):
