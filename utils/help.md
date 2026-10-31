@@ -66,6 +66,7 @@ Minecraft:
 
 <___utilities1-start___>
 - `/embed`: Fix X/Twitter, TikTok, Instagram, Reddit, and Threads links.
+- `/xinfo`: Look up an X/Twitter profile (direct link, @handle, or username).
 - `/color`: View color RGB/HEX info and palette preview.
 - `/ping`: Check bot latency and response time.
 - `/echo`: Safely repeat a message.
