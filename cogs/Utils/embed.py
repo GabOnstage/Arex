@@ -344,9 +344,14 @@ class TweetLayoutView(ReplyActionsMixin, _LayoutViewBase):
 
         self.add_item(cog._build_layout_container(base_status, self.color))
 
-        row = discord.ui.ActionRow()
-        row.add_item(LanguageSelect(self, selected, row=None))
-        row.add_item(
+        # Components V2 gives a select menu the full width of its Action Row, so
+        # it cannot share a row with buttons. Keep the picker on its own row.
+        select_row = discord.ui.ActionRow()
+        select_row.add_item(LanguageSelect(self, selected, row=None))
+        self.add_item(select_row)
+
+        button_row = discord.ui.ActionRow()
+        button_row.add_item(
             discord.ui.Button(
                 label="Go to post",
                 style=discord.ButtonStyle.link,
@@ -354,8 +359,8 @@ class TweetLayoutView(ReplyActionsMixin, _LayoutViewBase):
                 emoji="🔗",
             )
         )
-        row.add_item(self._make_delete_button())
-        self.add_item(row)
+        button_row.add_item(self._make_delete_button())
+        self.add_item(button_row)
 
     def _rebuild(self, selected: str = None, status: dict = None) -> "TweetLayoutView":
         return TweetLayoutView(
