@@ -32,6 +32,9 @@ A feature-rich Discord bot designed with moderation, Roblox player lookup, and e
    ```bash
    pip install -r requirements.txt
    ```
+   Inline video/GIF cards use Discord Components V2, which requires
+   **discord.py 2.6 or newer**. If you already have an older version installed,
+   force the upgrade with `pip install -U "discord.py>=2.6"`.
 
 3. **Configure Environment Variables:**
    Copy `.env.example` to `.env` and fill in your Discord credentials:
@@ -51,8 +54,8 @@ A feature-rich Discord bot designed with moderation, Roblox player lookup, and e
 
 For the social media embed fixer, give the bot these channel permissions:
 
-- **Send Messages** and **Embed Links** — post the generated embed.
-- **Attach Files** — upload X/Twitter videos and GIFs as playable attachments. Without it (or when a video exceeds the upload limit), the bot posts the direct MP4 link as a separate message.
+- **Send Messages** and **Embed Links** — post the generated card.
+- **Attach Files** — upload X/Twitter videos and GIFs as playable attachments when discord.py 2.6+ Components V2 cards are unavailable. Without it (or when a video exceeds the upload limit), the bot posts the direct MP4 link as a separate message.
 - **Read Message History** — look up the original message when the delete button is used.
 - **Manage Messages** — hide the original link preview (`SUPPRESS_EMBEDS`). Without it, the bot still replies with its own embed, but the author's preview stays visible.
 

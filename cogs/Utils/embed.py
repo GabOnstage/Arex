@@ -137,6 +137,23 @@ def _format_exact(value) -> str:
         return "0"
 
 
+def _animated_gif_url(url: str) -> str:
+    """Route tweet GIFs through FxTwitter's .gif host so Discord autoplays them.
+
+    X exposes animated GIFs as silent MP4s on video.twimg.com. Discord's
+    MediaGallery shows those with video controls instead of looping them, so we
+    swap the host/path for the matching animated GIF when it is available.
+    """
+    parts = urlsplit(url)
+    if (parts.hostname or "").lower() != "video.twimg.com":
+        return url
+    if not re.fullmatch(r"/tweet_video/[^/]+\.mp4", parts.path, re.IGNORECASE):
+        return url
+    return urlunsplit(
+        ("https", "gif.fxtwitter.com", f"{parts.path[:-4]}.gif", "", "")
+    )
+
+
 class LanguageSelect(discord.ui.Select):
     def __init__(self, view, selected: str = None, row: int = 0):
         options = [
@@ -419,6 +436,12 @@ class EmbedFix(commands.Cog):
         self._warned_manage_messages = False
         if not self.allowed_guilds:
             print("EmbedFix: Guilds is not set in .env — beta auto-fix is disabled everywhere.")
+        if not COMPONENTS_V2:
+            print(
+                "EmbedFix: discord.py < 2.6 detected. Inline video/GIF cards need "
+                "discord.py>=2.6; running the classic embed + video attachment "
+                "fallback instead. Upgrade with: pip install -U \"discord.py>=2.6\""
+            )
 
     def _bot_permissions(self, channel, guild):
         if guild is None:
@@ -684,30 +707,62 @@ class EmbedFix(commands.Cog):
         return None
 
     @staticmethod
-    def _primary_video_url(status: dict):
+    def _video_media(media: dict):
+        """Return each video/GIF attachment once, across fxtwitter's buckets.
+
+        Depending on the post, fxtwitter can expose videos in ``videos``,
+        only in ``all``, or as an ``external`` video. The gallery must consider
+        all three, otherwise the card silently drops the video.
+        """
+        external = media.get("external")
+        buckets = [media.get("videos"), media.get("all")]
+        if isinstance(external, dict):
+            buckets.append([external])
+
+        videos = []
+        seen = set()
+        for bucket in buckets:
+            for item in bucket or []:
+                if not isinstance(item, dict):
+                    continue
+                if item is not external and item.get("type") not in (
+                    "video",
+                    "gif",
+                    "animated_gif",
+                ):
+                    continue
+                key = item.get("id") or item.get("url")
+                if key and key in seen:
+                    continue
+                if key:
+                    seen.add(key)
+                videos.append(item)
+        return videos
+
+    @staticmethod
+    def _best_video_url(video: dict):
+        best_url = None
+        best_bitrate = -1
+        for fmt in video.get("formats") or []:
+            if not isinstance(fmt, dict) or fmt.get("container") != "mp4":
+                continue
+            url = fmt.get("url")
+            if not url:
+                continue
+            bitrate = fmt.get("bitrate") or 0
+            if bitrate > best_bitrate:
+                best_url, best_bitrate = url, bitrate
+        url = best_url or video.get("url")
+        if not url or ".m3u8" in url:
+            return None
+        return url
+
+    def _primary_video_url(self, status: dict):
         media = status.get("media") or {}
-        videos = media.get("videos") or [
-            item for item in (media.get("all") or [])
-            if isinstance(item, dict) and item.get("type") in ("video", "gif")
-        ]
-        for video in videos:
-            if not isinstance(video, dict):
-                continue
-            best_url = None
-            best_bitrate = -1
-            for fmt in video.get("formats") or []:
-                if not isinstance(fmt, dict) or fmt.get("container") != "mp4":
-                    continue
-                url = fmt.get("url")
-                if not url:
-                    continue
-                bitrate = fmt.get("bitrate") or 0
-                if bitrate > best_bitrate:
-                    best_url, best_bitrate = url, bitrate
-            url = best_url or video.get("url")
-            if not url or ".m3u8" in url:
-                continue
-            return url
+        for video in self._video_media(media):
+            url = self._best_video_url(video)
+            if url:
+                return url
         return None
 
     async def _download_media(self, session: aiohttp.ClientSession, url: str, limit: int):
@@ -738,15 +793,18 @@ class EmbedFix(commands.Cog):
         items = []
         seen = set()
 
-        for video in media.get("videos") or []:
-            if not isinstance(video, dict):
+        for video in self._video_media(media):
+            url = self._best_video_url(video)
+            if not url:
                 continue
-            url = self._primary_video_url({"media": {"videos": [video]}})
-            if not url or url in seen:
+            media_type = str(video.get("type") or "video").lower()
+            is_gif = media_type in ("gif", "animated_gif")
+            if is_gif:
+                url = _animated_gif_url(url)
+            if url in seen:
                 continue
             seen.add(url)
-            media_type = str(video.get("type") or "video").lower()
-            label = "GIF" if media_type == "gif" else "Video"
+            label = "Animated GIF" if is_gif else "Video"
             items.append(
                 discord.MediaGalleryItem(
                     url,
@@ -754,7 +812,11 @@ class EmbedFix(commands.Cog):
                 )
             )
 
-        for photo in media.get("photos") or []:
+        photos = media.get("photos") or [
+            item for item in (media.get("all") or [])
+            if isinstance(item, dict) and item.get("type") == "photo"
+        ]
+        for photo in photos:
             if not isinstance(photo, dict):
                 continue
             url = photo.get("url")
@@ -809,7 +871,10 @@ class EmbedFix(commands.Cog):
                 body = f"{body}\n\n{block}" if body else block
 
         header = identity + (f"\n\n{body}" if body else "")
-        header = _truncate(header, 4000)
+        # Components V2 allows 4000 display characters across the whole card;
+        # leave room for the stats and footer lines so long posts still render
+        # as a card (instead of failing and falling back to a classic embed).
+        header = _truncate(header, 3000)
 
         children = []
         avatar = author.get("avatar_url")
@@ -1150,8 +1215,11 @@ class EmbedFix(commands.Cog):
                         self._track_reply(message.id, message.channel.id, reply.id)
                         await self._suppress(message)
                         return
-                    except discord.HTTPException:
-                        pass
+                    except discord.HTTPException as exc:
+                        print(
+                            "EmbedFix: Components V2 card failed, falling back to "
+                            f"a classic embed ({exc})."
+                        )
 
                 embed = self._build_embed(status)
                 view = TweetView(
@@ -1337,8 +1405,11 @@ class EmbedFix(commands.Cog):
                             allowed_mentions=discord.AllowedMentions.none(),
                         )
                         return
-                    except discord.HTTPException:
-                        pass
+                    except discord.HTTPException as exc:
+                        print(
+                            "EmbedFix: Components V2 card failed, falling back to "
+                            f"a classic embed ({exc})."
+                        )
 
                 embed = self._build_embed(status)
                 view = TweetView(
