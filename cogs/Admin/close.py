@@ -1,6 +1,10 @@
+import logging
 import os
 import discord
 from discord.ext import commands
+
+log = logging.getLogger("arex.close")
+
 
 def is_authorized_admin(user_id: int) -> bool:
     raw_owners = os.getenv('OWNERS', '')

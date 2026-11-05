@@ -1,3 +1,4 @@
+import logging
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -9,6 +10,9 @@ import os
 from datetime import datetime, timezone
 from time import monotonic
 from typing import List, Optional, Union
+
+log = logging.getLogger("arex.roblox")
+
 
 SEARCH_CACHE_TTL = 300
 SEARCH_CACHE_MAX = 200

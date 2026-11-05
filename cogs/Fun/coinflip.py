@@ -1,6 +1,10 @@
+import logging
 import discord
 from discord.ext import commands
 import random
+
+log = logging.getLogger("arex.coinflip")
+
 
 
 class CoinFlip(commands.Cog):

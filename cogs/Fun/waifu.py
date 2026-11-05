@@ -1,8 +1,12 @@
+import logging
 import aiohttp
 import discord
 from discord.ext import commands
 from discord import app_commands
 from typing import Optional
+
+log = logging.getLogger("arex.waifu")
+
 
 WAIFU_API = "https://api.waifu.im/images"
 

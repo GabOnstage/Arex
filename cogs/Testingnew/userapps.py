@@ -1,6 +1,10 @@
+import logging
 import discord
 from discord.ext import commands
 from discord import app_commands
+
+log = logging.getLogger("arex.userapps")
+
 
 class Userapps(commands.Cog):
     def __init__(self, bot: commands.Bot):

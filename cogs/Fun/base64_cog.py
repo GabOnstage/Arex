@@ -1,9 +1,13 @@
+import logging
 import base64
 import asyncio
 import time
 from typing import Optional
 import discord
 from discord.ext import commands
+
+log = logging.getLogger("arex.base64_cog")
+
 
 MAX_INPUT_LENGTH = 1000
 COOLDOWN_SECONDS = 3.0

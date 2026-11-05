@@ -1,8 +1,12 @@
+import logging
 import discord
 from discord.ext import commands
 import random
 from typing import Optional
 import aiohttp
+
+log = logging.getLogger("arex.colorinfo")
+
 
 class ColorView(discord.ui.View):
     def __init__(self, color_name: str, hex_number: str, rgb_values: dict, html_url: str, *, timeout=180):

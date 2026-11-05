@@ -1,8 +1,12 @@
+import logging
 import discord
 from discord.ext import commands
 import aiohttp
 import random
 from typing import Optional
+
+log = logging.getLogger("arex.advice")
+
 
 FALLBACK_ADVICE = [
     "Always remember that you are absolutely unique. Just like everyone else.",

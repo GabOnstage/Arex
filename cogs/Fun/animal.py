@@ -1,3 +1,4 @@
+import logging
 import aiohttp
 from discord.ext import commands
 from discord import app_commands
@@ -6,6 +7,9 @@ from datetime import datetime, timezone
 import random
 from typing import Optional
 import asyncio
+
+log = logging.getLogger("arex.animal")
+
 
 class Animal(commands.Cog):
     def __init__(self, bot: commands.Bot):

@@ -1,8 +1,12 @@
+import logging
 import discord
 from discord import app_commands
 from discord.ext import commands
 import aiohttp
 from urllib.parse import quote_plus
+
+log = logging.getLogger("arex.minecraft")
+
 
 
 def _format_uuid(raw_uuid: str) -> str:

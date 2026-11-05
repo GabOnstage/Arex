@@ -1,6 +1,10 @@
+import logging
 import os
 import discord
 from discord.ext import commands
+
+log = logging.getLogger("arex.al")
+
 
 def get_allowed_user_ids():
     raw = os.getenv('ALLOWED_USER_IDS', '')

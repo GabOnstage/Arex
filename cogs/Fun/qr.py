@@ -1,6 +1,10 @@
+import logging
 import discord
 from discord.ext import commands
 from urllib.parse import quote_plus
+
+log = logging.getLogger("arex.qr")
+
 
 class QR(commands.Cog):
     def __init__(self, bot: commands.Bot):

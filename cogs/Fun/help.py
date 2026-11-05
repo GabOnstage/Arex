@@ -1,5 +1,9 @@
+import logging
 import discord
 from discord.ext import commands
+
+log = logging.getLogger("arex.help")
+
 
 CATEGORIES = {
     "admin": {

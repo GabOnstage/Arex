@@ -1,7 +1,11 @@
+import logging
 import discord
 from discord.ext import commands
 import aiohttp
 from typing import Optional, Tuple
+
+log = logging.getLogger("arex.quote")
+
 
 class RandomQuote(discord.ui.View):
     def __init__(self, bot: commands.Bot, *, timeout=180):

@@ -1,7 +1,11 @@
+import logging
 import discord
 from discord.ext import commands
 from discord import app_commands
 from typing import List
+
+log = logging.getLogger("arex.choices")
+
 
 class FruitChoices(commands.Cog):
     def __init__(self, bot: commands.Bot):

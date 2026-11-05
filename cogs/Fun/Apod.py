@@ -1,7 +1,11 @@
+import logging
 import os
 import discord
 import aiohttp
 from discord.ext import commands
+
+log = logging.getLogger("arex.apod")
+
 
 class APOD(commands.Cog):
     def __init__(self, bot: commands.Bot):

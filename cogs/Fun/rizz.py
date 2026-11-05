@@ -1,9 +1,13 @@
+import logging
 import discord
 from discord.ext import commands
 from discord import app_commands
 import aiohttp
 import random
 from typing import Optional, Tuple
+
+log = logging.getLogger("arex.rizz")
+
 
 RIZZ_LINES = [
     "Are you a magician? Because whenever I look at you, everyone else disappears.",

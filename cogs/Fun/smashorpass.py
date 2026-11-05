@@ -1,8 +1,12 @@
+import logging
 import random
 import discord
 from discord.ext import commands
 from discord import app_commands
 from typing import Optional
+
+log = logging.getLogger("arex.smashorpass")
+
 
 SMASH_LINES = [
     "No hesitation.",

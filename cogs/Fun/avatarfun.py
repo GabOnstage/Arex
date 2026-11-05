@@ -1,9 +1,13 @@
+import logging
 import os
 import discord
 from discord.ext import commands
 from typing import Optional
 import aiohttp
 import io
+
+log = logging.getLogger("arex.avatarfun")
+
 
 MAX_FILE_SIZE = 8 * 1024 * 1024  # 8 MB
 

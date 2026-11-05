@@ -1,8 +1,12 @@
+import logging
 import discord
 from discord.ext import commands
 import aiohttp
 from datetime import datetime, timezone
 import asyncio
+
+log = logging.getLogger("arex.f1")
+
 
 class F1Info(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:

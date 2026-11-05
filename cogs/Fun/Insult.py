@@ -1,4 +1,5 @@
 import html
+import logging
 import time
 from typing import Optional, Union
 
@@ -6,6 +7,9 @@ import aiohttp
 import discord
 from discord import app_commands
 from discord.ext import commands
+
+log = logging.getLogger("arex.insult")
+
 
 class Insult(commands.Cog):
     def __init__(self, bot: commands.Bot):
@@ -48,8 +52,10 @@ class Insult(commands.Cog):
                     
                     # Return the fully cleaned string, stripping any trailing/leading spaces
                     return raw_insult.strip()
+                log.warning("EvilInsult API returned HTTP %s", response.status)
                 return None
-        except Exception:
+        except Exception as exc:
+            log.warning("Failed to fetch an insult: %s", exc, exc_info=exc)
             return None
         finally:
             if close_session and session and not session.closed:

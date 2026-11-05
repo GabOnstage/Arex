@@ -74,7 +74,7 @@ class ArexBot(commands.Bot):
 
             print(f"   ├─── {subdir}")
             for filename in sorted(os.listdir(subdir_path)):
-                if filename.endswith(".py") and not filename.startswith("__"):
+                if filename.endswith(".py") and not filename.startswith("_"):
                     ext_name = f"cogs.{subdir}.{filename[:-3]}"
                     try:
                         await self.load_extension(ext_name)
@@ -119,6 +119,7 @@ async def on_command_error(ctx, error):
     elif isinstance(error, commands.CommandOnCooldown):
         await ctx.send(f"This command is on cooldown. Try again in `{error.retry_after:.1f}s`.")
     else:
+        log.error("Command %s failed", ctx.command, exc_info=error)
         print(f"Ignoring exception in command {ctx.command}:", file=sys.stderr)
         print(f"{error}", file=sys.stderr)
 

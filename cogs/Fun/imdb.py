@@ -1,6 +1,10 @@
+import logging
 import discord
 from discord.ext import commands
 import aiohttp
+
+log = logging.getLogger("arex.imdb")
+
 
 IMDB_BASE = 'https://imdb.iamidiotareyoutoo.com'
 

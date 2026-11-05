@@ -1,8 +1,12 @@
+import logging
 import os
 import discord
 from discord.ext import commands
 from discord import app_commands
 from reactionmenu import ViewButton, ViewMenu, ViewSelect, Page
+
+log = logging.getLogger("arex.help_menu")
+
 
 class HelpMenu(commands.Cog):
     def __init__(self, bot: commands.Bot):

@@ -1,5 +1,9 @@
+import logging
 import discord
 from discord.ext import commands
+
+log = logging.getLogger("arex.echo")
+
 
 class Echo(commands.Cog):
     def __init__(self, bot: commands.Bot):

@@ -1,11 +1,28 @@
-import discord
-from discord.ext import commands
-from discord import app_commands
+import logging
 from typing import Optional
+
+import discord
+from discord import app_commands
+from discord.ext import commands
+
+log = logging.getLogger("arex.userinfo")
+
 
 class UserInfo(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+        self.user_menu = app_commands.ContextMenu(
+            name="User Info",
+            callback=self.handle_userinfo_context_menu,
+            allowed_contexts=app_commands.AppCommandContext(
+                guild=True, dm_channel=True, private_channel=True
+            ),
+            allowed_installs=app_commands.AppInstallationType(guild=True, user=True),
+        )
+        self.bot.tree.add_command(self.user_menu)
+
+    async def cog_unload(self):
+        self.bot.tree.remove_command(self.user_menu.name, type=self.user_menu.type)
 
     @commands.hybrid_command(name="userinfo", description="Show detailed information about a Discord user or member.")
     @app_commands.describe(
@@ -30,8 +47,9 @@ class UserInfo(commands.Cog):
             except discord.NotFound:
                 await ctx.send(f"User with ID `{user_id}` not found.", ephemeral=True)
                 return
-            except Exception as e:
-                await ctx.send(f"Failed to fetch user: {e}", ephemeral=True)
+            except Exception as exc:
+                log.exception("Failed to fetch user %s", user_id)
+                await ctx.send(f"Failed to fetch user: {exc}", ephemeral=True)
                 return
         elif member:
             target_member = member
@@ -41,6 +59,13 @@ class UserInfo(commands.Cog):
                 target_member = ctx.author
             target_user = await self.bot.fetch_user(ctx.author.id)
 
+        await ctx.send(embed=self._build_embed(target_user, target_member))
+
+    def _build_embed(
+        self,
+        target_user: discord.User,
+        target_member: Optional[discord.Member] = None,
+    ) -> discord.Embed:
         profile_image = target_user.display_avatar.url
         banner_url = target_user.banner.url if target_user.banner else None
 
@@ -62,7 +87,7 @@ class UserInfo(commands.Cog):
             if target_member.joined_at:
                 embed.add_field(name="Joined Server", value=f"<t:{int(target_member.joined_at.timestamp())}:F> (<t:{int(target_member.joined_at.timestamp())}:R>)", inline=False)
             embed.add_field(name="Top Role", value=target_member.top_role.mention, inline=True)
-            
+
             roles = [r.mention for r in reversed(target_member.roles[1:])]  # Exclude @everyone
             if roles:
                 role_str = ', '.join(roles[:15]) + (f" (+{len(roles)-15} more)" if len(roles) > 15 else "")
@@ -79,8 +104,22 @@ class UserInfo(commands.Cog):
                 embed.add_field(name="Badges", value=', '.join(flags), inline=False)
 
         embed.add_field(name="Bot Account", value="Yes" if target_user.bot else "No", inline=True)
+        return embed
 
-        await ctx.send(embed=embed)
+    async def handle_userinfo_context_menu(
+        self,
+        interaction: discord.Interaction,
+        user: discord.User,
+    ):
+        """Show the same profile card from Apps > User Info."""
+        await interaction.response.defer()
+
+        target_member = None
+        if interaction.guild is not None:
+            target_member = interaction.guild.get_member(user.id)
+
+        embed = self._build_embed(user, target_member)
+        await interaction.followup.send(embed=embed)
 
     @userinfo.error
     async def userinfo_error(self, ctx: commands.Context, error: Exception):
@@ -89,6 +128,7 @@ class UserInfo(commands.Cog):
         elif isinstance(error, commands.BadArgument):
             await ctx.send("Invalid argument provided. Please mention a member or enter a valid user ID.", ephemeral=True)
         else:
+            log.error("userinfo failed: %s", error, exc_info=error)
             await ctx.send(f"An error occurred: {error}", ephemeral=True)
 
 async def setup(bot: commands.Bot):

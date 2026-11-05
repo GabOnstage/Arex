@@ -1,6 +1,10 @@
+import logging
 import discord
 from discord.ext import commands
 import aiohttp
+
+log = logging.getLogger("arex.meme")
+
 
 class Meme(commands.Cog):
     def __init__(self, bot: commands.Bot):

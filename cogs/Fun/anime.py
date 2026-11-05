@@ -1,8 +1,12 @@
+import logging
 import aiohttp
 import discord
 from discord.ext import commands
 from discord import app_commands
 import random
+
+log = logging.getLogger("arex.anime")
+
 
 KITSU_API = "https://kitsu.io/api/edge/anime"
 KITSU_HEADERS = {"Accept": "application/vnd.api+json"}

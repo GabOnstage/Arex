@@ -1,3 +1,4 @@
+import logging
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -6,6 +7,9 @@ import socket
 from urllib.parse import urlparse
 import re
 import asyncio
+
+log = logging.getLogger("arex.loc")
+
 
 class ConfirmationView(discord.ui.View):
     def __init__(self, target: str, timeout=60):

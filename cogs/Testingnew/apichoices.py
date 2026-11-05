@@ -1,8 +1,12 @@
+import logging
 import discord
 from discord.ext import commands
 from discord import app_commands
 from typing import List
 import aiohttp
+
+log = logging.getLogger("arex.apichoices")
+
 
 ROBLOX_USER_CACHE: dict = {}
 

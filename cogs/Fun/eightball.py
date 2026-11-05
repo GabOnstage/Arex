@@ -1,7 +1,11 @@
+import logging
 import discord
 from discord.ext import commands
 import aiohttp
 import urllib.parse
+
+log = logging.getLogger("arex.eightball")
+
 
 class Ball(commands.Cog):
     def __init__(self, bot: commands.Bot):

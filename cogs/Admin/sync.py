@@ -1,6 +1,10 @@
+import logging
 import discord
 from discord.ext import commands
 from typing import Literal, Optional
+
+log = logging.getLogger("arex.sync")
+
 
 class Syncer(commands.Cog):
     def __init__(self, bot: commands.Bot):

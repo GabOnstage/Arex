@@ -1,8 +1,12 @@
+import logging
 import hashlib
 import discord
 from discord.ext import commands
 from discord import app_commands
 from typing import Optional
+
+log = logging.getLogger("arex.gayness")
+
 
 RAINBOW = [
     discord.Color.from_str("#E40303"),

@@ -75,4 +75,6 @@ Minecraft:
 - `/b64 encode|decode`: Base64 encoder/decoder (rate limited).
 - `/hn`: Top Hacker News stories.
 - `/weather`: Current weather via Open-Meteo.
+- `/foward`: Forward a message and its images to another channel (works with bot messages and keeps a copy).
+- **Context menus**: Right-click a message for `Forward Message` / `Fix Embed`, or right-click a user for `User Info` / `Insult User`.
 <___utilities1-end___>

@@ -1,40 +1,40 @@
-import io
-import os
-import re
+import logging
 import asyncio
+import io
+import re
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
+from urllib.parse import urlsplit, urlunsplit
+
 import aiohttp
 import discord
 from discord import app_commands
 from discord.ext import commands
-from urllib.parse import urlsplit, urlunsplit
-from datetime import datetime, timezone
-from email.utils import parsedate_to_datetime
+
+from ._embed_common import (
+    MAX_VIDEO_BYTES,
+    TRAILING_PUNCTUATION,
+    _format_count,
+    _format_exact,
+    _swap_domain,
+    _truncate,
+    get_session,
+    get_tracker,
+    is_wrapped,
+    resolve_link,
+)
+
+log = logging.getLogger("arex.x_embed")
 
 
-PRIMARY_DOMAINS = {
-    "x.com": "fixupx.com",
-    "twitter.com": "fixupx.com",
-    "tiktok.com": "tnktok.com",
-    "instagram.com": "axinstagram.com",
-    "reddit.com": "vxreddit.com",
-    "threads.net": "vxthreads.net",
-}
-
-BACKUP_DOMAINS = {
-    "x.com": "twitterez.com",
-    "twitter.com": "twitterez.com",
-    "tiktok.com": "tiktokez.com",
-    "instagram.com": "instagramez.com",
-    "reddit.com": "redditez.com",
-    "threads.net": "threadsez.net",
-}
-
-SUPPORTED_PLATFORMS = "X/Twitter, TikTok, Instagram, Reddit, Threads"
 
 FX_API = "https://api.fxtwitter.com/2/status/{id}"
+THREAD_API = "https://api.fxtwitter.com/2/thread/{id}"
 PROFILE_API = "https://api.fxtwitter.com/2/profile/{username}"
 
-MAX_VIDEO_BYTES = 10 * 1024 * 1024
+# Thread cards stay interactive long enough to read a long thread, then expire
+# instead of keeping stale navigation buttons around forever.
+THREAD_VIEW_TIMEOUT = 5 * 60
 
 # Components V2 (discord.py 2.6+) lets a bot render video/GIF media inside a
 # card via MediaGallery. Classic embeds cannot contain a video.
@@ -60,16 +60,7 @@ X_URL_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
-OTHER_URL_PATTERN = re.compile(
-    r"https?://(?:[a-z0-9-]+\.)*(?P<domain>tiktok\.com|instagram\.com|reddit\.com|threads\.net)(?:/[^\s<>`]*)?",
-    re.IGNORECASE,
-)
-
 STATUS_PATH_PATTERN = re.compile(r"/(?:status|statuses)/(\d+)", re.IGNORECASE)
-
-TRAILING_PUNCTUATION = ".,;:!?)}]>\"'"
-
-MAX_TRACKED_REPLIES = 5000
 
 LANGUAGES = [
     ("English", "en"),
@@ -96,45 +87,6 @@ LANGUAGES = [
 ]
 
 LANGUAGE_NAMES = {code: label for label, code in LANGUAGES}
-
-
-def _parse_guild_ids() -> frozenset:
-    raw = os.getenv("Guilds", "")
-    return frozenset(int(g.strip()) for g in raw.split(",") if g.strip().isdigit())
-
-
-def _swap_domain(url: str, new_domain: str) -> str:
-    parts = urlsplit(url)
-    return urlunsplit((parts.scheme or "https", new_domain, parts.path, "", ""))
-
-
-def _format_count(value) -> str:
-    try:
-        number = int(value or 0)
-    except (TypeError, ValueError):
-        return "0"
-    if number < 1000:
-        return str(number)
-    if number < 1_000_000:
-        text = f"{number / 1000:.1f}".rstrip("0").rstrip(".")
-        return f"{text}K"
-    text = f"{number / 1_000_000:.1f}".rstrip("0").rstrip(".")
-    return f"{text}M"
-
-
-def _truncate(text: str, limit: int) -> str:
-    if not text:
-        return ""
-    if len(text) <= limit:
-        return text
-    return text[: max(0, limit - 1)].rstrip() + "…"
-
-
-def _format_exact(value) -> str:
-    try:
-        return f"{int(value or 0):,}"
-    except (TypeError, ValueError):
-        return "0"
 
 
 def _animated_gif_url(url: str) -> str:
@@ -188,12 +140,13 @@ class LanguageSelect(discord.ui.Select):
 class ReplyActionsMixin:
     """Shared author/moderator delete behavior for reply cards."""
 
-    cog: "EmbedFix"
+    cog: "XEmbed"
     author_id: int
     original_message_id: int
 
     async def handle_delete(self, interaction: discord.Interaction):
-        if not self.cog._can_delete(interaction, self.author_id):
+        tracker = self.cog.tracker
+        if not tracker.can_delete(interaction, self.author_id):
             await interaction.response.send_message(
                 "Only the original author or moderators can delete this.",
                 ephemeral=True,
@@ -205,7 +158,7 @@ class ReplyActionsMixin:
         # Keep the author's original preview suppressed: deleting the bot embed
         # must not re-embed the original message.
         if self.original_message_id:
-            await self.cog._delete_tracked_reply(
+            await tracker.delete_tracked_reply(
                 self.original_message_id,
                 exclude_id=getattr(interaction.message, "id", None),
             )
@@ -229,11 +182,66 @@ class ReplyActionsMixin:
         return delete_button
 
 
+class ThreadNavigationMixin:
+    """Up/down buttons for stepping through a fetched thread."""
+
+    thread: list
+    index: int
+
+    def _has_thread(self) -> bool:
+        return bool(self.thread) and len(self.thread) > 1
+
+    def _nav_buttons(self, row: int = None):
+        previous = discord.ui.Button(
+            emoji="⬆️",
+            style=discord.ButtonStyle.secondary,
+            disabled=self.index <= 0,
+            row=row,
+        )
+        previous.callback = self._previous_post
+        following = discord.ui.Button(
+            emoji="⬇️",
+            style=discord.ButtonStyle.secondary,
+            disabled=self.index >= len(self.thread) - 1,
+            row=row,
+        )
+        following.callback = self._next_post
+        return previous, following
+
+    async def _previous_post(self, interaction: discord.Interaction):
+        await self._navigate(interaction, -1)
+
+    async def _next_post(self, interaction: discord.Interaction):
+        await self._navigate(interaction, 1)
+
+    async def _navigate(self, interaction: discord.Interaction, delta: int):
+        # Respond before doing any work so we stay inside Discord's 3 second
+        # interaction window, even on slower connections.
+        await interaction.response.defer()
+
+        new_index = self.index + delta
+        if not 0 <= new_index < len(self.thread):
+            return
+
+        view = self._rebuild(index=new_index)
+        payload = self._navigate_payload(new_index)
+        try:
+            await interaction.message.edit(view=view, **payload)
+        except discord.HTTPException:
+            pass
+
+
 class ReplyView(ReplyActionsMixin, discord.ui.View):
     """Classic rich-embed view with a shared author/moderator delete button."""
 
-    def __init__(self, cog: "EmbedFix", author_id: int, original_message_id: int = None):
-        super().__init__(timeout=None)
+    def __init__(
+        self,
+        cog: "XEmbed",
+        author_id: int,
+        original_message_id: int = None,
+        timeout: float = None,
+    ):
+        super().__init__(timeout=timeout)
         self.cog = cog
         self.author_id = author_id
         self.original_message_id = original_message_id
@@ -242,10 +250,10 @@ class ReplyView(ReplyActionsMixin, discord.ui.View):
         self.add_item(self._make_delete_button(row=row))
 
 
-class TweetView(ReplyView):
+class TweetView(ThreadNavigationMixin, ReplyView):
     def __init__(
         self,
-        cog: "EmbedFix",
+        cog: "XEmbed",
         base_status: dict,
         tweet_id: str,
         post_url: str,
@@ -253,8 +261,19 @@ class TweetView(ReplyView):
         original_message_id: int = None,
         color: int = None,
         selected: str = None,
+        thread: list = None,
+        index: int = 0,
     ):
-        super().__init__(cog, author_id, original_message_id)
+        self.thread = list(thread) if thread else [base_status]
+        self.index = max(0, min(index, len(self.thread) - 1))
+        is_thread = len(self.thread) > 1
+
+        super().__init__(
+            cog,
+            author_id,
+            original_message_id,
+            timeout=THREAD_VIEW_TIMEOUT if is_thread else None,
+        )
         self.base_status = base_status
         self.tweet_id = tweet_id
         self.post_url = post_url
@@ -272,23 +291,48 @@ class TweetView(ReplyView):
         )
         self._add_delete_button(row=1)
 
-    def _rebuild(self, selected: str = None) -> "TweetView":
+        if is_thread:
+            previous, following = self._nav_buttons(row=2)
+            self.add_item(previous)
+            self.add_item(following)
+
+    def _rebuild(self, selected: str = None, index: int = None) -> "TweetView":
+        index = self.index if index is None else index
+        base = self.base_status if index == self.index else self.thread[index]
         return TweetView(
             self.cog,
-            self.base_status,
-            self.tweet_id,
-            self.post_url,
+            base,
+            base.get("id") or self.tweet_id,
+            self.cog._canonical_post_url(base),
             self.author_id,
             self.original_message_id,
             self.color,
             selected,
+            thread=self.thread,
+            index=index,
         )
+
+    def _navigate_payload(self, index: int):
+        return {
+            "embed": self.cog._build_embed(
+                self.thread[index],
+                color=self.color,
+                thread=self.thread,
+            ),
+            # Drop the previous post's downloaded video so it doesn't linger
+            # under a different post in the classic (non-Components V2) fallback.
+            "attachments": [],
+        }
 
     async def handle_translate(self, interaction: discord.Interaction, language: str):
         await interaction.response.defer()
 
         if language == "original":
-            embed = self.cog._build_embed(self.base_status, color=self.color)
+            embed = self.cog._build_embed(
+                self.base_status,
+                color=self.color,
+                thread=self.thread,
+            )
             try:
                 await interaction.message.edit(embed=embed, view=self._rebuild("original"))
             except discord.HTTPException:
@@ -312,19 +356,19 @@ class TweetView(ReplyView):
             )
             return
 
-        embed = self.cog._build_embed(status, color=self.color)
+        embed = self.cog._build_embed(status, color=self.color, thread=self.thread)
         try:
             await interaction.message.edit(embed=embed, view=self._rebuild(language))
         except discord.HTTPException:
             pass
 
 
-class TweetLayoutView(ReplyActionsMixin, _LayoutViewBase):
+class TweetLayoutView(ThreadNavigationMixin, ReplyActionsMixin, _LayoutViewBase):
     """Components V2 card whose MediaGallery plays videos/GIFs inline."""
 
     def __init__(
         self,
-        cog: "EmbedFix",
+        cog: "XEmbed",
         base_status: dict,
         tweet_id: str,
         post_url: str,
@@ -332,8 +376,14 @@ class TweetLayoutView(ReplyActionsMixin, _LayoutViewBase):
         original_message_id: int = None,
         color: int = None,
         selected: str = None,
+        thread: list = None,
+        index: int = 0,
     ):
-        super().__init__(timeout=None)
+        self.thread = list(thread) if thread else [base_status]
+        self.index = max(0, min(index, len(self.thread) - 1))
+        is_thread = len(self.thread) > 1
+
+        super().__init__(timeout=THREAD_VIEW_TIMEOUT if is_thread else None)
         self.cog = cog
         self.author_id = author_id
         self.original_message_id = original_message_id
@@ -342,7 +392,7 @@ class TweetLayoutView(ReplyActionsMixin, _LayoutViewBase):
         self.post_url = post_url
         self.color = color if color is not None else discord.Color.random().value
 
-        self.add_item(cog._build_layout_container(base_status, self.color))
+        self.add_item(cog._build_layout_container(base_status, self.color, thread=self.thread))
 
         # Components V2 gives a select menu the full width of its Action Row, so
         # it cannot share a row with buttons. Keep the picker on its own row.
@@ -362,17 +412,41 @@ class TweetLayoutView(ReplyActionsMixin, _LayoutViewBase):
         button_row.add_item(self._make_delete_button())
         self.add_item(button_row)
 
-    def _rebuild(self, selected: str = None, status: dict = None) -> "TweetLayoutView":
+        if is_thread:
+            nav_row = discord.ui.ActionRow()
+            previous, following = self._nav_buttons()
+            nav_row.add_item(previous)
+            nav_row.add_item(following)
+            self.add_item(nav_row)
+
+    def _rebuild(
+        self,
+        selected: str = None,
+        status: dict = None,
+        index: int = None,
+    ) -> "TweetLayoutView":
+        index = self.index if index is None else index
+        if status is not None:
+            base = status
+        elif index == self.index:
+            base = self.base_status
+        else:
+            base = self.thread[index]
         return TweetLayoutView(
             self.cog,
-            status or self.base_status,
-            self.tweet_id,
-            self.post_url,
+            base,
+            base.get("id") or self.tweet_id,
+            self.cog._canonical_post_url(base),
             self.author_id,
             self.original_message_id,
             self.color,
             selected,
+            thread=self.thread,
+            index=index,
         )
+
+    def _navigate_payload(self, index: int):
+        return {}
 
     async def handle_translate(self, interaction: discord.Interaction, language: str):
         await interaction.response.defer()
@@ -410,7 +484,7 @@ class TweetLayoutView(ReplyActionsMixin, _LayoutViewBase):
 class ProfileView(ReplyView):
     def __init__(
         self,
-        cog: "EmbedFix",
+        cog: "XEmbed",
         profile: dict,
         author_id: int,
         original_message_id: int = None,
@@ -433,40 +507,16 @@ class ProfileView(ReplyView):
         self._add_delete_button(row=0)
 
 
-class EmbedFix(commands.Cog):
+class XEmbed(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.allowed_guilds = _parse_guild_ids()
-        self._replies = {}
-        self._warned_manage_messages = False
-        if not self.allowed_guilds:
-            print("EmbedFix: Guilds is not set in .env — beta auto-fix is disabled everywhere.")
+        self.tracker = get_tracker(bot)
         if not COMPONENTS_V2:
             print(
                 "EmbedFix: discord.py < 2.6 detected. Inline video/GIF cards need "
                 "discord.py>=2.6; running the classic embed + video attachment "
                 "fallback instead. Upgrade with: pip install -U \"discord.py>=2.6\""
             )
-
-    def _bot_permissions(self, channel, guild):
-        if guild is None:
-            return None
-        me = guild.me or guild.get_member(self.bot.user.id)
-        if me is None:
-            return None
-        return channel.permissions_for(me)
-
-    def _get_session(self):
-        session = getattr(self.bot, "session", None)
-        if session is None or session.closed:
-            return aiohttp.ClientSession(), True
-        return session, False
-
-    @staticmethod
-    def _can_delete(interaction: discord.Interaction, author_id: int) -> bool:
-        permissions = getattr(interaction.user, "guild_permissions", None)
-        is_mod = bool(permissions and (permissions.manage_messages or permissions.administrator))
-        return interaction.user.id == author_id or is_mod
 
     @staticmethod
     def _upload_limit(guild) -> int:
@@ -490,24 +540,8 @@ class EmbedFix(commands.Cog):
         except AttributeError:
             return True
 
-    async def _resolve(self, session: aiohttp.ClientSession, base_domain: str, url: str) -> str:
-        primary = _swap_domain(url, PRIMARY_DOMAINS[base_domain])
-        backup_base = BACKUP_DOMAINS.get(base_domain)
-        if backup_base is None:
-            return primary
-        backup = _swap_domain(url, backup_base)
-
-        for candidate in (primary, backup):
-            try:
-                async with session.get(candidate, timeout=aiohttp.ClientTimeout(total=4)) as resp:
-                    if resp.status < 500:
-                        return candidate
-            except (aiohttp.ClientError, asyncio.TimeoutError):
-                continue
-        return primary
-
     async def _fetch_status(self, tweet_id: str, lang: str = None):
-        session, close_session = self._get_session()
+        session, close_session = get_session(self.bot)
 
         params = {"lang": lang} if lang else None
         data = None
@@ -532,8 +566,84 @@ class EmbedFix(commands.Cog):
             return None
         return status
 
+    async def _fetch_thread(self, tweet_id: str):
+        """Fetch the focal post plus the unrolled thread it belongs to."""
+        session, close_session = get_session(self.bot)
+
+        data = None
+        try:
+            async with session.get(
+                THREAD_API.format(id=tweet_id),
+                timeout=aiohttp.ClientTimeout(total=12),
+            ) as resp:
+                if resp.status == 200:
+                    data = await resp.json(content_type=None)
+        except (aiohttp.ClientError, asyncio.TimeoutError, ValueError):
+            data = None
+        finally:
+            if close_session and session and not session.closed:
+                await session.close()
+
+        if not isinstance(data, dict) or data.get("code") != 200:
+            return None
+        status = data.get("status")
+        if not isinstance(status, dict) or status.get("type") != "status":
+            return None
+
+        raw_thread = data.get("thread")
+        thread = []
+        if isinstance(raw_thread, list):
+            seen = set()
+            for item in raw_thread:
+                if not isinstance(item, dict) or item.get("type") != "status":
+                    continue
+                key = item.get("id")
+                if key and key in seen:
+                    continue
+                if key:
+                    seen.add(key)
+                thread.append(item)
+
+        if not thread:
+            thread = [status]
+        elif not any(item.get("id") == status.get("id") for item in thread):
+            # The focal post should always be part of the returned thread, but
+            # keep navigation sane if the API omits it.
+            thread.insert(0, status)
+
+        return status, thread
+
+    async def _fetch_post_with_thread(self, tweet_id: str):
+        """Prefer the thread endpoint, falling back to the single-post endpoint."""
+        fetched = await self._fetch_thread(tweet_id)
+        if fetched is not None:
+            return fetched
+
+        status = await self._fetch_status(tweet_id)
+        if status is None:
+            return None
+        return status, [status]
+
+    @staticmethod
+    def _thread_index(thread: list, status: dict) -> int:
+        status_id = status.get("id")
+        for index, item in enumerate(thread or []):
+            if item.get("id") == status_id:
+                return index
+        return 0
+
+    @staticmethod
+    def _thread_position(thread: list, status: dict):
+        if not thread or len(thread) <= 1:
+            return None
+        status_id = status.get("id")
+        for index, item in enumerate(thread):
+            if item.get("id") == status_id:
+                return index + 1, len(thread)
+        return None
+
     async def _fetch_profile(self, username: str):
-        session, close_session = self._get_session()
+        session, close_session = get_session(self.bot)
         data = None
         try:
             async with session.get(
@@ -555,16 +665,9 @@ class EmbedFix(commands.Cog):
             return None
         return user
 
-    @staticmethod
-    def _is_wrapped(content: str, match: re.Match) -> bool:
-        start, end = match.span()
-        before = content[start - 1] if start > 0 else ""
-        after = content[end] if end < len(content) else ""
-        return before == "<" and after == ">"
-
-    def _find_x_link(self, content: str, allow_wrapped: bool = False):
+    def find_x_link(self, content: str, allow_wrapped: bool = False):
         for match in X_URL_PATTERN.finditer(content):
-            if not allow_wrapped and self._is_wrapped(content, match):
+            if not allow_wrapped and is_wrapped(content, match):
                 continue
             url = match.group(0).rstrip(TRAILING_PUNCTUATION)
             status_match = STATUS_PATH_PATTERN.search(urlsplit(url).path)
@@ -572,9 +675,9 @@ class EmbedFix(commands.Cog):
                 return url, status_match.group(1)
         return None
 
-    def _find_x_profile_link(self, content: str, allow_wrapped: bool = False):
+    def find_x_profile_link(self, content: str, allow_wrapped: bool = False):
         for match in X_URL_PATTERN.finditer(content):
-            if not allow_wrapped and self._is_wrapped(content, match):
+            if not allow_wrapped and is_wrapped(content, match):
                 continue
             url = match.group(0).rstrip(TRAILING_PUNCTUATION)
             segments = [segment for segment in urlsplit(url).path.split("/") if segment]
@@ -588,34 +691,19 @@ class EmbedFix(commands.Cog):
             return url, username
         return None
 
-    def _parse_username(self, raw: str):
+    def parse_username(self, raw: str):
         raw = (raw or "").strip()
         if not raw:
             return None
         if re.match(r"^(?:www\.)?(?:x|twitter|fixupx|fxtwitter)\.com/", raw, re.IGNORECASE):
             raw = "https://" + raw
-        found = self._find_x_profile_link(raw, allow_wrapped=True)
+        found = self.find_x_profile_link(raw, allow_wrapped=True)
         if found:
             return found[1]
         raw = raw.lstrip("@").strip()
         if re.fullmatch(r"[A-Za-z0-9_]{1,15}", raw):
             return raw
         return None
-
-    def _find_other_links(self, content: str):
-        found = []
-        seen = set()
-        for match in OTHER_URL_PATTERN.finditer(content):
-            if self._is_wrapped(content, match):
-                continue
-            url = match.group(0).rstrip(TRAILING_PUNCTUATION)
-            domain = match.group("domain").lower()
-            key = url.lower()
-            if key in seen:
-                continue
-            seen.add(key)
-            found.append((url, domain))
-        return found
 
     @staticmethod
     def _canonical_post_url(status: dict) -> str:
@@ -858,7 +946,7 @@ class EmbedFix(commands.Cog):
 
         return body
 
-    def _build_layout_container(self, status: dict, color: int = None):
+    def _build_layout_container(self, status: dict, color: int = None, thread: list = None):
         author = status.get("author") or {}
         screen_name = author.get("screen_name") or "i"
         name = author.get("name") or screen_name
@@ -910,6 +998,9 @@ class EmbedFix(commands.Cog):
         children.append(discord.ui.TextDisplay(f"-# {footer}"))
 
         credit = "-# X / Twitter"
+        position = self._thread_position(thread, status)
+        if position:
+            credit += f" • Post {position[0]}/{position[1]}"
         created = status.get("created_timestamp")
         if created:
             credit += f" • <t:{int(created)}:R>"
@@ -920,7 +1011,7 @@ class EmbedFix(commands.Cog):
             accent_color=color if color is not None else discord.Color.random().value,
         )
 
-    def _build_embed(self, status: dict, color: int = None) -> discord.Embed:
+    def _build_embed(self, status: dict, color: int = None, thread: list = None) -> discord.Embed:
         author = status.get("author") or {}
         screen_name = author.get("screen_name") or "i"
         name = author.get("name") or screen_name
@@ -962,6 +1053,9 @@ class EmbedFix(commands.Cog):
             f"❤️ {_format_count(status.get('likes'))}   "
             f"👁 {_format_count(status.get('views'))}"
         )
+        position = self._thread_position(thread, status)
+        if position:
+            footer += f"   •   Post {position[0]}/{position[1]}"
         embed.set_footer(text=footer[:2048])
 
         # Let Discord render/localize the post time in the footer.
@@ -1041,89 +1135,15 @@ class EmbedFix(commands.Cog):
         embed.set_footer(text="X / Twitter profile")
         return embed
 
-    def _track_reply(self, original_id: int, channel_id: int, *reply_ids: int):
-        new_ids = [reply_id for reply_id in reply_ids if reply_id]
-        if not new_ids:
-            return
-
-        entry = self._replies.get(original_id)
-        existing = []
-        if entry is not None:
-            stored = entry[1] if isinstance(entry[1], (list, tuple)) else (entry[1],)
-            existing = list(stored)
-        merged = tuple(dict.fromkeys(existing + new_ids))
-
-        self._replies[original_id] = (channel_id, merged)
-        while len(self._replies) > MAX_TRACKED_REPLIES:
-            del self._replies[next(iter(self._replies))]
-
-    async def _delete_reply_entry(self, entry):
-        channel = self.bot.get_channel(entry[0])
-        if channel is None:
-            return
-        stored = entry[1] if isinstance(entry[1], (list, tuple)) else (entry[1],)
-        for reply_id in stored:
-            try:
-                await channel.get_partial_message(reply_id).delete()
-            except discord.HTTPException:
-                pass
-
-    async def _delete_tracked_reply(self, original_id: int, exclude_id: int = None):
-        entry = self._replies.pop(original_id, None)
-        if entry is None:
-            return
-        channel = self.bot.get_channel(entry[0])
-        if channel is None:
-            return
-        stored = entry[1] if isinstance(entry[1], (list, tuple)) else (entry[1],)
-        for reply_id in stored:
-            if reply_id == exclude_id:
-                continue
-            try:
-                await channel.get_partial_message(reply_id).delete()
-            except discord.HTTPException:
-                pass
-
-    def _find_original_by_reply(self, reply_id: int):
-        for original_id, entry in self._replies.items():
-            stored = entry[1] if isinstance(entry[1], (list, tuple)) else (entry[1],)
-            if reply_id in stored:
-                return original_id
-        return None
-
-    async def _set_suppressed(self, message: discord.Message, suppress: bool):
-        try:
-            await message.edit(suppress=suppress)
-        except TypeError:
-            try:
-                await discord.PartialMessage.edit(message, suppress=suppress)
-            except TypeError:
-                pass
-        except discord.HTTPException:
-            pass
-
-    async def _suppress(self, message: discord.Message):
-        perms = self._bot_permissions(message.channel, message.guild)
-        if perms is None or not perms.manage_messages:
-            if not self._warned_manage_messages:
-                self._warned_manage_messages = True
-                print("EmbedFix: missing Manage Messages — original embeds will not be suppressed.")
-            return
-        await self._set_suppressed(message, True)
-
     async def _reply_fixed_link(self, message: discord.Message, url: str):
         host = (urlsplit(url).netloc or "").lower()
-        session = getattr(self.bot, "session", None)
-        close_session = False
-        if session is None or session.closed:
-            session = aiohttp.ClientSession()
-            close_session = True
+        session, close_session = get_session(self.bot)
 
         try:
             if host == "x.com" or host.endswith(".x.com"):
-                fixed = await self._resolve(session, "x.com", url)
+                fixed = await resolve_link(session, url, "fixupx.com", "twitterez.com")
             elif host == "twitter.com" or host.endswith(".twitter.com"):
-                fixed = await self._resolve(session, "twitter.com", url)
+                fixed = await resolve_link(session, url, "fixupx.com", "twitterez.com")
             else:
                 fixed = _swap_domain(url, "fixupx.com")
 
@@ -1135,7 +1155,7 @@ class EmbedFix(commands.Cog):
                 )
             except discord.HTTPException:
                 return
-            self._track_reply(message.id, message.channel.id, reply.id)
+            self.tracker.track_reply(message.id, message.channel.id, reply.id)
         finally:
             if close_session and session and not session.closed:
                 await session.close()
@@ -1186,39 +1206,44 @@ class EmbedFix(commands.Cog):
 
         return reply, video_post
 
-    async def _handle_x(self, message: discord.Message, url: str, tweet_id: str):
-        perms = self._bot_permissions(message.channel, message.guild)
+    async def handle_message(self, message: discord.Message, url: str, tweet_id: str):
+        perms = self.tracker.bot_permissions(message.channel, message.guild)
         if perms is None or not perms.send_messages:
             return
         if not perms.embed_links:
             await self._reply_fixed_link(message, url)
             return
 
-        session, close_session = self._get_session()
+        session, close_session = get_session(self.bot)
         try:
             async with message.channel.typing():
-                status = await self._fetch_status(tweet_id)
-                if status is None:
+                fetched = await self._fetch_post_with_thread(tweet_id)
+                if fetched is None:
                     await self._reply_fixed_link(message, url)
                     return
+                status, thread = fetched
+                index = self._thread_index(thread, status)
+                focal = thread[index]
 
                 if COMPONENTS_V2:
                     try:
                         view = TweetLayoutView(
                             self,
-                            status,
-                            tweet_id,
-                            self._canonical_post_url(status),
+                            focal,
+                            focal.get("id") or tweet_id,
+                            self._canonical_post_url(focal),
                             message.author.id,
                             message.id,
+                            thread=thread,
+                            index=index,
                         )
                         reply = await message.reply(
                             view=view,
                             mention_author=False,
                             allowed_mentions=discord.AllowedMentions.none(),
                         )
-                        self._track_reply(message.id, message.channel.id, reply.id)
-                        await self._suppress(message)
+                        self.tracker.track_reply(message.id, message.channel.id, reply.id)
+                        await self.tracker.suppress(message)
                         return
                     except discord.HTTPException as exc:
                         print(
@@ -1226,20 +1251,22 @@ class EmbedFix(commands.Cog):
                             f"a classic embed ({exc})."
                         )
 
-                embed = self._build_embed(status)
+                embed = self._build_embed(focal, thread=thread)
                 view = TweetView(
                     self,
-                    status,
-                    tweet_id,
-                    self._canonical_post_url(status),
+                    focal,
+                    focal.get("id") or tweet_id,
+                    self._canonical_post_url(focal),
                     message.author.id,
                     message.id,
                     color=embed.color.value,
+                    thread=thread,
+                    index=index,
                 )
 
                 reply, video_post = await self._send_tweet(
                     lambda **kwargs: message.reply(mention_author=False, **kwargs),
-                    status,
+                    focal,
                     embed,
                     view,
                     message.guild,
@@ -1249,19 +1276,19 @@ class EmbedFix(commands.Cog):
                 if reply is None:
                     return
 
-                self._track_reply(
+                self.tracker.track_reply(
                     message.id,
                     message.channel.id,
                     reply.id,
                     video_post.id if video_post is not None else None,
                 )
-                await self._suppress(message)
+                await self.tracker.suppress(message)
         finally:
             if close_session and session and not session.closed:
                 await session.close()
 
-    async def _handle_x_profile(self, message: discord.Message, url: str, username: str):
-        perms = self._bot_permissions(message.channel, message.guild)
+    async def handle_profile_message(self, message: discord.Message, url: str, username: str):
+        perms = self.tracker.bot_permissions(message.channel, message.guild)
         if perms is None or not perms.send_messages:
             return
         if not perms.embed_links:
@@ -1292,201 +1319,92 @@ class EmbedFix(commands.Cog):
             except discord.HTTPException:
                 return
 
-            self._track_reply(message.id, message.channel.id, reply.id)
-            await self._suppress(message)
+            self.tracker.track_reply(message.id, message.channel.id, reply.id)
+            await self.tracker.suppress(message)
 
-    async def _handle_other(self, message: discord.Message, found):
-        session = getattr(self.bot, "session", None)
-        close_session = False
-        if session is None or session.closed:
-            session = aiohttp.ClientSession()
-            close_session = True
-
+    async def handle_command_post(self, ctx: commands.Context, url: str, tweet_id: str):
+        session, close_session = get_session(self.bot)
         try:
-            fixed_links = []
-            for url, domain in found:
-                fixed_links.append(await self._resolve(session, domain, url))
-            try:
-                reply = await message.reply(
-                    content="\n".join(fixed_links),
-                    mention_author=False,
-                    allowed_mentions=discord.AllowedMentions.none(),
-                )
-            except discord.HTTPException:
+            fetched = await self._fetch_post_with_thread(tweet_id)
+            if fetched is None:
+                await ctx.send("I couldn't fetch that post.")
                 return
-            self._track_reply(message.id, message.channel.id, reply.id)
-        finally:
-            if close_session and session and not session.closed:
-                await session.close()
+            status, thread = fetched
+            index = self._thread_index(thread, status)
+            focal = thread[index]
 
-    async def _handle_message(self, message: discord.Message, allow_suppressed: bool = False):
-        if not allow_suppressed and message.flags.suppress_embeds:
-            return
-
-        x_link = self._find_x_link(message.content)
-        if x_link:
-            await self._handle_x(message, x_link[0], x_link[1])
-            return
-
-        profile_link = self._find_x_profile_link(message.content)
-        if profile_link:
-            await self._handle_x_profile(message, profile_link[0], profile_link[1])
-            return
-
-        found = self._find_other_links(message.content)
-        if found:
-            await self._handle_other(message, found)
-
-    @commands.Cog.listener()
-    async def on_message(self, message: discord.Message):
-        if message.author.bot or message.guild is None:
-            return
-        if message.guild.id not in self.allowed_guilds:
-            return
-
-        prefixes = await self.bot.get_prefix(message)
-        if isinstance(prefixes, str):
-            prefixes = [prefixes]
-        if any(message.content.startswith(p) for p in prefixes):
-            return
-
-        await self._handle_message(message)
-
-    @commands.Cog.listener()
-    async def on_message_edit(self, before: discord.Message, after: discord.Message):
-        if after.author.bot or after.guild is None:
-            return
-        if after.guild.id not in self.allowed_guilds:
-            return
-        if before.content == after.content:
-            return
-
-        entry = self._replies.pop(after.id, None)
-        if entry is not None:
-            await self._delete_reply_entry(entry)
-
-        await self._handle_message(after, allow_suppressed=True)
-
-    @commands.Cog.listener()
-    async def on_message_delete(self, message: discord.Message):
-        if message.guild is None or message.guild.id not in self.allowed_guilds:
-            return
-
-        if message.author.bot:
-            original_id = self._find_original_by_reply(message.id)
-            if original_id is None:
-                return
-            self._replies.pop(original_id, None)
-        else:
-            await self._delete_tracked_reply(message.id)
-
-    @commands.hybrid_command(name="embed", description="Fix a social media link so it embeds properly in Discord.")
-    @app_commands.describe(link=f"Link to fix ({SUPPORTED_PLATFORMS})")
-    @commands.cooldown(1, 3, commands.BucketType.user)
-    async def embed(self, ctx: commands.Context, link: str):
-        await ctx.defer()
-        link = link.strip()
-
-        x_link = self._find_x_link(link, allow_wrapped=True)
-        if x_link:
-            session, close_session = self._get_session()
-            try:
-                status = await self._fetch_status(x_link[1])
-                if status is None:
-                    await ctx.send("I couldn't fetch that post.")
+            if COMPONENTS_V2:
+                try:
+                    view = TweetLayoutView(
+                        self,
+                        focal,
+                        focal.get("id") or tweet_id,
+                        self._canonical_post_url(focal),
+                        ctx.author.id,
+                        thread=thread,
+                        index=index,
+                    )
+                    await ctx.send(
+                        view=view,
+                        allowed_mentions=discord.AllowedMentions.none(),
+                    )
                     return
+                except discord.HTTPException as exc:
+                    print(
+                        "EmbedFix: Components V2 card failed, falling back to "
+                        f"a classic embed ({exc})."
+                    )
 
-                if COMPONENTS_V2:
-                    try:
-                        view = TweetLayoutView(
-                            self,
-                            status,
-                            x_link[1],
-                            self._canonical_post_url(status),
-                            ctx.author.id,
-                        )
-                        await ctx.send(
-                            view=view,
-                            allowed_mentions=discord.AllowedMentions.none(),
-                        )
-                        return
-                    except discord.HTTPException as exc:
-                        print(
-                            "EmbedFix: Components V2 card failed, falling back to "
-                            f"a classic embed ({exc})."
-                        )
-
-                embed = self._build_embed(status)
-                view = TweetView(
-                    self,
-                    status,
-                    x_link[1],
-                    self._canonical_post_url(status),
-                    ctx.author.id,
-                    color=embed.color.value,
-                )
-                reply, _ = await self._send_tweet(
-                    ctx.send,
-                    status,
-                    embed,
-                    view,
-                    ctx.guild,
-                    session,
-                    allow_file=self._can_attach(ctx),
-                )
-                if reply is None:
-                    await ctx.send(self._canonical_post_url(status))
-            finally:
-                if close_session and session and not session.closed:
-                    await session.close()
-            return
-
-        profile_link = self._find_x_profile_link(link, allow_wrapped=True)
-        if profile_link:
-            profile = await self._fetch_profile(profile_link[1])
-            if profile is None:
-                await ctx.send("I couldn't fetch that profile.")
-                return
-
-            embed = self._build_profile_embed(profile)
-            view = ProfileView(
+            embed = self._build_embed(focal, thread=thread)
+            view = TweetView(
                 self,
-                profile,
+                focal,
+                focal.get("id") or tweet_id,
+                self._canonical_post_url(focal),
                 ctx.author.id,
                 color=embed.color.value,
+                thread=thread,
+                index=index,
             )
-            try:
-                await ctx.send(embed=embed, view=view, allowed_mentions=discord.AllowedMentions.none())
-            except discord.HTTPException:
-                await ctx.send(self._profile_url(profile))
-            return
-
-        match = OTHER_URL_PATTERN.search(link)
-        if match is None:
-            await ctx.send(f"Unsupported link. Supported platforms: {SUPPORTED_PLATFORMS}.")
-            return
-
-        domain = match.group("domain").lower()
-        session = getattr(self.bot, "session", None)
-        close_session = False
-        if session is None or session.closed:
-            session = aiohttp.ClientSession()
-            close_session = True
-
-        try:
-            url = link[match.start():match.end()].rstrip(TRAILING_PUNCTUATION)
-            fixed = await self._resolve(session, domain, url)
-            await ctx.send(fixed)
+            reply, _ = await self._send_tweet(
+                ctx.send,
+                focal,
+                embed,
+                view,
+                ctx.guild,
+                session,
+                allow_file=self._can_attach(ctx),
+            )
+            if reply is None:
+                await ctx.send(self._canonical_post_url(focal))
         finally:
             if close_session and session and not session.closed:
                 await session.close()
+
+    async def handle_command_profile(self, ctx: commands.Context, url: str, username: str):
+        profile = await self._fetch_profile(username)
+        if profile is None:
+            await ctx.send("I couldn't fetch that profile.")
+            return
+
+        embed = self._build_profile_embed(profile)
+        view = ProfileView(
+            self,
+            profile,
+            ctx.author.id,
+            color=embed.color.value,
+        )
+        try:
+            await ctx.send(embed=embed, view=view, allowed_mentions=discord.AllowedMentions.none())
+        except discord.HTTPException:
+            await ctx.send(self._profile_url(profile))
 
     @commands.hybrid_command(name="xinfo", description="Look up an X/Twitter profile.")
     @app_commands.describe(username="X username, @handle, or profile URL")
     @commands.cooldown(1, 3, commands.BucketType.user)
     async def xinfo(self, ctx: commands.Context, username: str):
         await ctx.defer()
-        parsed = self._parse_username(username)
+        parsed = self.parse_username(username)
         if parsed is None:
             await ctx.send("Give me an X username, @handle, or profile URL.")
             return
@@ -1510,4 +1428,4 @@ class EmbedFix(commands.Cog):
 
 
 async def setup(bot: commands.Bot):
-    await bot.add_cog(EmbedFix(bot))
+    await bot.add_cog(XEmbed(bot))

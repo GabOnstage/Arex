@@ -1,9 +1,13 @@
+import logging
 import discord
 from discord.ext import commands
 from discord import app_commands
 import aiohttp
 import random
 from typing import Optional
+
+log = logging.getLogger("arex.tod")
+
 
 BASE_TOD_API = "https://api.truthordarebot.xyz/v1"
 

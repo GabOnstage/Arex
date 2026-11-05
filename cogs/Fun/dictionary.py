@@ -1,7 +1,11 @@
+import logging
 import discord
 from discord.ext import commands
 import aiohttp
 from urllib.parse import quote_plus
+
+log = logging.getLogger("arex.dictionary")
+
 
 class Dictionary(commands.Cog):
     def __init__(self, bot: commands.Bot):

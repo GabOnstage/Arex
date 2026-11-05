@@ -1,8 +1,12 @@
+import logging
 import discord
 import random
 import aiohttp
 import asyncio
 from discord.ext import commands
+
+log = logging.getLogger("arex.pokemon")
+
 
 class Pokemon(commands.Cog):
     def __init__(self, bot: commands.Bot):
