@@ -4,6 +4,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from typing import Optional
+from utils.userapps import user_app
 
 log = logging.getLogger("arex.yiffy")
 
@@ -82,6 +83,7 @@ class Yiffy(commands.Cog):
         await ctx.send(embed=embed, view=view)
 
     @commands.hybrid_command(name="yiffy_sfw", description="Fetch a random SFW furry image from the Yiffy API.")
+    @user_app()
     @app_commands.describe(category="Image category (defaults to Fursuit)")
     @app_commands.choices(category=SFW_CATEGORY_CHOICES)
     async def yiffy_sfw(self, ctx: commands.Context, category: Optional[app_commands.Choice[str]] = None):

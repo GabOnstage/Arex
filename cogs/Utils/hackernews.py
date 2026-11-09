@@ -2,6 +2,7 @@ import logging
 import discord
 from discord.ext import commands
 import aiohttp
+from utils.userapps import user_app
 
 log = logging.getLogger("arex.hackernews")
 
@@ -11,6 +12,7 @@ class HackerNews(commands.Cog):
         self.bot = bot
 
     @commands.hybrid_command(name="hn", description="Show top Hacker News stories (titles + links).")
+    @user_app()
     async def hn(self, ctx: commands.Context, count: int = 5):
         await ctx.defer()
         count = max(1, min(10, count))

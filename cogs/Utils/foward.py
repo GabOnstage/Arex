@@ -7,6 +7,7 @@ from urllib.parse import unquote, urlparse
 import discord
 from discord import app_commands
 from discord.ext import commands
+from utils.userapps import user_app_guild_only
 
 log = logging.getLogger("arex.foward")
 
@@ -135,6 +136,7 @@ class Foward(commands.Cog):
         aliases=["forward"],
         description="Forward a message and its images to another channel, even if the original is deleted or edited.",
     )
+    @user_app_guild_only()
     @commands.guild_only()
     @app_commands.describe(
         channel="The channel to forward the message to.",

@@ -1,6 +1,7 @@
 import logging
 import discord
 from discord.ext import commands
+from utils.userapps import user_app
 
 log = logging.getLogger("arex.ping")
 
@@ -10,6 +11,7 @@ class Ping(commands.Cog):
         self.bot = bot
 
     @commands.hybrid_command(name="ping", description="Check the bot's WebSocket latency and responsiveness.")
+    @user_app()
     async def ping(self, ctx: commands.Context):
         latency = round(self.bot.latency * 1000)
         embed = discord.Embed(

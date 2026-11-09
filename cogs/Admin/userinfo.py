@@ -1,9 +1,10 @@
 import logging
-from typing import Optional
+from typing import Optional, Union
 
 import discord
 from discord import app_commands
 from discord.ext import commands
+from utils.userapps import user_app
 
 log = logging.getLogger("arex.userinfo")
 
@@ -25,11 +26,17 @@ class UserInfo(commands.Cog):
         self.bot.tree.remove_command(self.user_menu.name, type=self.user_menu.type)
 
     @commands.hybrid_command(name="userinfo", description="Show detailed information about a Discord user or member.")
+    @user_app()
     @app_commands.describe(
         member="Select a member from this server",
         user_id="Or provide a user ID to fetch globally"
     )
-    async def userinfo(self, ctx: commands.Context, member: Optional[discord.Member] = None, user_id: Optional[str] = None):
+    async def userinfo(
+        self,
+        ctx: commands.Context,
+        member: Optional[Union[discord.Member, discord.User]] = None,
+        user_id: Optional[str] = None,
+    ):
         await ctx.defer()
 
         target_user = None
@@ -52,7 +59,8 @@ class UserInfo(commands.Cog):
                 await ctx.send(f"Failed to fetch user: {exc}", ephemeral=True)
                 return
         elif member:
-            target_member = member
+            if isinstance(member, discord.Member):
+                target_member = member
             target_user = await self.bot.fetch_user(member.id)
         else:
             if isinstance(ctx.author, discord.Member):

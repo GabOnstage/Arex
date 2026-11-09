@@ -24,6 +24,8 @@ from ._embed_common import (
     resolve_link,
 )
 
+from utils.userapps import user_app
+
 log = logging.getLogger("arex.x_embed")
 
 
@@ -850,12 +852,22 @@ class XEmbed(commands.Cog):
             return None
         return url
 
+    @staticmethod
+    def _media_sources(status: dict):
+        """Return the post and any quoted post that carry media."""
+        sources = [status]
+        quote = status.get("quote")
+        if isinstance(quote, dict) and quote.get("type") == "status":
+            sources.append(quote)
+        return sources
+
     def _primary_video_url(self, status: dict):
-        media = status.get("media") or {}
-        for video in self._video_media(media):
-            url = self._best_video_url(video)
-            if url:
-                return url
+        for source in self._media_sources(status):
+            media = source.get("media") or {}
+            for video in self._video_media(media):
+                url = self._best_video_url(video)
+                if url:
+                    return url
         return None
 
     async def _download_media(self, session: aiohttp.ClientSession, url: str, limit: int):
@@ -878,50 +890,55 @@ class XEmbed(commands.Cog):
             return None
 
     def _gallery_items(self, status: dict):
-        media = status.get("media") or {}
-        author = status.get("author") or {}
-        name = author.get("name") or author.get("screen_name") or "X"
-        name = _truncate(str(name), 180)
-
         items = []
         seen = set()
 
-        for video in self._video_media(media):
-            url = self._best_video_url(video)
-            if not url:
-                continue
-            media_type = str(video.get("type") or "video").lower()
-            is_gif = media_type in ("gif", "animated_gif")
-            if is_gif:
-                url = _animated_gif_url(url)
-            if url in seen:
-                continue
-            seen.add(url)
-            label = "Animated GIF" if is_gif else "Video"
-            items.append(
-                discord.MediaGalleryItem(
-                    url,
-                    description=_truncate(f"{label} from {name}", 256),
-                )
-            )
+        for source in self._media_sources(status):
+            media = source.get("media") or {}
+            author = source.get("author") or {}
+            name = author.get("name") or author.get("screen_name") or "X"
+            name = _truncate(str(name), 180)
+            quoted = source is not status
 
-        photos = media.get("photos") or [
-            item for item in (media.get("all") or [])
-            if isinstance(item, dict) and item.get("type") == "photo"
-        ]
-        for photo in photos:
-            if not isinstance(photo, dict):
-                continue
-            url = photo.get("url")
-            if not url or url in seen:
-                continue
-            seen.add(url)
-            items.append(
-                discord.MediaGalleryItem(
-                    url,
-                    description=_truncate(f"Image from {name}", 256),
+            for video in self._video_media(media):
+                url = self._best_video_url(video)
+                if not url:
+                    continue
+                media_type = str(video.get("type") or "video").lower()
+                is_gif = media_type in ("gif", "animated_gif")
+                if is_gif:
+                    url = _animated_gif_url(url)
+                if url in seen:
+                    continue
+                seen.add(url)
+                label = "Animated GIF" if is_gif else "Video"
+                if quoted:
+                    label = f"Quoted {label.lower()}"
+                items.append(
+                    discord.MediaGalleryItem(
+                        url,
+                        description=_truncate(f"{label} from {name}", 256),
+                    )
                 )
-            )
+
+            photos = media.get("photos") or [
+                item for item in (media.get("all") or [])
+                if isinstance(item, dict) and item.get("type") == "photo"
+            ]
+            for photo in photos:
+                if not isinstance(photo, dict):
+                    continue
+                url = photo.get("url")
+                if not url or url in seen:
+                    continue
+                seen.add(url)
+                label = "Quoted image" if quoted else "Image"
+                items.append(
+                    discord.MediaGalleryItem(
+                        url,
+                        description=_truncate(f"{label} from {name}", 256),
+                    )
+                )
 
         return items[:10]
 
@@ -1160,13 +1177,15 @@ class XEmbed(commands.Cog):
             if close_session and session and not session.closed:
                 await session.close()
 
-    @staticmethod
-    def _drop_video_thumbnail(embed: discord.Embed, status: dict):
-        videos = (status.get("media") or {}).get("videos") or []
-        if not videos or not isinstance(videos[0], dict):
-            return
-        thumbnail = videos[0].get("thumbnail_url")
-        if thumbnail and getattr(embed.image, "url", None) == thumbnail:
+    def _drop_video_thumbnail(self, embed: discord.Embed, status: dict):
+        thumbnails = set()
+        for source in self._media_sources(status):
+            media = source.get("media") or {}
+            for video in self._video_media(media):
+                thumbnail = video.get("thumbnail_url")
+                if thumbnail:
+                    thumbnails.add(thumbnail)
+        if getattr(embed.image, "url", None) in thumbnails:
             embed.set_image(url=None)
 
     async def _send_tweet(self, sender, status: dict, embed: discord.Embed, view, guild, session, allow_file: bool = True):
@@ -1400,6 +1419,7 @@ class XEmbed(commands.Cog):
             await ctx.send(self._profile_url(profile))
 
     @commands.hybrid_command(name="xinfo", description="Look up an X/Twitter profile.")
+    @user_app()
     @app_commands.describe(username="X username, @handle, or profile URL")
     @commands.cooldown(1, 3, commands.BucketType.user)
     async def xinfo(self, ctx: commands.Context, username: str):

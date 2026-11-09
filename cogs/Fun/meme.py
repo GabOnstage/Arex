@@ -2,6 +2,7 @@ import logging
 import discord
 from discord.ext import commands
 import aiohttp
+from utils.userapps import user_app
 
 log = logging.getLogger("arex.meme")
 
@@ -11,6 +12,7 @@ class Meme(commands.Cog):
         self.bot = bot
 
     @commands.hybrid_command(name="meme", description="Fetches a random popular meme from Reddit.")
+    @user_app()
     async def meme(self, ctx: commands.Context):
         await ctx.defer()
         session = getattr(self.bot, 'session', None)

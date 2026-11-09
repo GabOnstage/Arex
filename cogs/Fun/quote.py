@@ -3,6 +3,7 @@ import discord
 from discord.ext import commands
 import aiohttp
 from typing import Optional, Tuple
+from utils.userapps import user_app
 
 log = logging.getLogger("arex.quote")
 
@@ -59,6 +60,7 @@ class Quote(commands.Cog):
         self.bot = bot
 
     @commands.hybrid_command(name="quote", description="Get a random inspirational quote.")
+    @user_app()
     async def quote(self, ctx: commands.Context):
         await ctx.defer()
         content, author = await fetch_quote(self.bot)

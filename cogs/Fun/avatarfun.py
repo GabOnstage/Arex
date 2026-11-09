@@ -5,6 +5,7 @@ from discord.ext import commands
 from typing import Optional
 import aiohttp
 import io
+from utils.userapps import user_app
 
 log = logging.getLogger("arex.avatarfun")
 
@@ -17,6 +18,7 @@ class AvatarFun(commands.Cog):
         self.bot = bot
 
     @commands.hybrid_command(name="avatar", description="Process an attached image (or your avatar) through the jeyy image API.")
+    @user_app()
     async def avatar(self, ctx: commands.Context, file: Optional[discord.Attachment] = None):
         """Applies an effect to an uploaded image or your avatar."""
         await ctx.defer()

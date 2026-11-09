@@ -2,6 +2,7 @@ import logging
 import discord
 from discord.ext import commands
 import aiohttp
+from utils.userapps import user_app
 
 log = logging.getLogger("arex.imdb")
 
@@ -13,6 +14,7 @@ class Movie(commands.Cog):
         self.bot = bot
 
     @commands.hybrid_group(name="movie", description="Movie & TV show search.")
+    @user_app()
     async def movie_group(self, ctx: commands.Context):
         if ctx.invoked_subcommand is None:
             await ctx.send("Usage: `/movie search <query>`")

@@ -7,6 +7,7 @@ import socket
 from urllib.parse import urlparse
 import re
 import asyncio
+from utils.userapps import user_app
 
 log = logging.getLogger("arex.loc")
 
@@ -87,6 +88,7 @@ class Loc(commands.Cog):
         self.bot = bot
 
     @commands.hybrid_command(name="locate", description="Gets approximate geolocation information of a Website or IP.")
+    @user_app()
     @app_commands.describe(url_or_ip="Enter a Website URL, Domain, or IP Address")
     async def locate(self, ctx: commands.Context, url_or_ip: str):
         target = url_or_ip.strip()

@@ -2,6 +2,7 @@ import logging
 import discord
 from discord.ext import commands
 from urllib.parse import quote_plus
+from utils.userapps import user_app
 
 log = logging.getLogger("arex.qr")
 
@@ -11,6 +12,7 @@ class QR(commands.Cog):
         self.bot = bot
 
     @commands.hybrid_command(name="qr", description="Create a QR code from text (returns image URL).")
+    @user_app()
     async def qr(self, ctx: commands.Context, *, text: str):
         await ctx.defer()
         if not text:

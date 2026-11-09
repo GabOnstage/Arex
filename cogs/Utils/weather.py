@@ -3,6 +3,7 @@ import discord
 from discord.ext import commands
 import aiohttp
 from urllib.parse import quote_plus
+from utils.userapps import user_app
 
 log = logging.getLogger("arex.weather")
 
@@ -12,6 +13,7 @@ class Weather(commands.Cog):
         self.bot = bot
 
     @commands.hybrid_command(name="weather", description="Get current weather for a place (uses Open-Meteo).")
+    @user_app()
     async def weather(self, ctx: commands.Context, *, location: str):
         await ctx.defer()
         q = location.strip()

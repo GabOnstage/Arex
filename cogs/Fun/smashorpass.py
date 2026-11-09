@@ -4,6 +4,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from typing import Optional
+from utils.userapps import user_app
 
 log = logging.getLogger("arex.smashorpass")
 
@@ -30,8 +31,9 @@ class SmashOrPass(commands.Cog):
         self.bot = bot
 
     @commands.hybrid_command(name="smashorpass", aliases=["sop"], description="Deliver the ultimate verdict on a user.")
+    @user_app()
     @app_commands.describe(user="The user to judge (defaults to you)")
-    async def smashorpass(self, ctx: commands.Context, user: Optional[discord.Member] = None):
+    async def smashorpass(self, ctx: commands.Context, user: Optional[discord.User] = None):
         target = user or ctx.author
         smashed = random.random() < 0.5
 

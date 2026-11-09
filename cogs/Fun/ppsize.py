@@ -4,6 +4,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from typing import Optional
+from utils.userapps import user_app
 
 log = logging.getLogger("arex.ppsize")
 
@@ -38,8 +39,9 @@ class PPSize(commands.Cog):
         self.bot = bot
 
     @commands.hybrid_command(name="ppsize", description="Scientifically measure a user's PP size.")
+    @user_app()
     @app_commands.describe(user="The user to measure (defaults to you)")
-    async def ppsize(self, ctx: commands.Context, user: Optional[discord.Member] = None):
+    async def ppsize(self, ctx: commands.Context, user: Optional[discord.User] = None):
         target = user or ctx.author
         size = _seeded_size(target.id)
 

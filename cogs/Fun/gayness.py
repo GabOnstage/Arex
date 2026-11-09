@@ -4,6 +4,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from typing import Optional
+from utils.userapps import user_app
 
 log = logging.getLogger("arex.gayness")
 
@@ -40,8 +41,9 @@ class Gayness(commands.Cog):
         self.bot = bot
 
     @commands.hybrid_command(name="gayness", description="Measure a user's gay percentage.")
+    @user_app()
     @app_commands.describe(user="The user to measure (defaults to you)")
-    async def gayness(self, ctx: commands.Context, user: Optional[discord.Member] = None):
+    async def gayness(self, ctx: commands.Context, user: Optional[discord.User] = None):
         target = user or ctx.author
         percent = _seeded_percent(target.id)
         color = RAINBOW[percent % len(RAINBOW)]

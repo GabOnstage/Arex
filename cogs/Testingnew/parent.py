@@ -1,6 +1,7 @@
 import logging
 import discord
 from discord.ext import commands
+from utils.userapps import user_app
 
 log = logging.getLogger("arex.parent")
 
@@ -10,6 +11,7 @@ class ParentCog(commands.Cog):
         self.bot = bot
 
     @commands.hybrid_group(name="parent", fallback="info", description="Example command group")
+    @user_app()
     async def parent_group(self, ctx: commands.Context) -> None:
         await ctx.send("Hello from the parent command group! Use `/parent sub-command` to run subcommands.")
 

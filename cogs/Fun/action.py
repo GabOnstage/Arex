@@ -4,6 +4,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from typing import Optional
+from utils.userapps import user_app
 
 log = logging.getLogger("arex.action")
 
@@ -38,9 +39,10 @@ class Action(commands.Cog):
         self.bot = bot
 
     @commands.hybrid_command(name="action", description="Send an anime reaction GIF to a user.")
+    @user_app()
     @app_commands.describe(type="The action to perform", user="The target of your action (optional)")
     @app_commands.choices(type=ACTIONS)
-    async def action(self, ctx: commands.Context, type: app_commands.Choice[str], user: Optional[discord.Member] = None):
+    async def action(self, ctx: commands.Context, type: app_commands.Choice[str], user: Optional[discord.User] = None):
         await ctx.defer()
         session = getattr(self.bot, 'session', None)
         close_session = False

@@ -1,6 +1,7 @@
 import logging
 import discord
 from discord.ext import commands
+from utils.userapps import user_app
 
 log = logging.getLogger("arex.help")
 
@@ -20,11 +21,11 @@ CATEGORIES = {
             "`/tempchannel` — Create auto-expiring temporary channels.",
         ],
     },
-    "gaming": {
-        "title": "「 🎮 」Roblox & Minecraft",
+    "games": {
+        "title": "「 🎮 」Games",
         "color": discord.Color.green(),
         "emoji": "🎮",
-        "description": "Game lookups, badges & server status",
+        "description": "Roblox, Minecraft & mini-games",
         "commands": [
             "`/roblox user <user>` — Comprehensive Roblox user lookup.",
             "`/roblox badge <user>` — Search user Roblox badges.",
@@ -41,13 +42,21 @@ CATEGORIES = {
             "`/roblox rotector-discord-batch <ids>` — Rotector batch Discord lookup.",
             "`/mc server <address>` — Minecraft server status & stats.",
             "`/mc skin <username>` — Minecraft user skin & profile lookup.",
+            "`/rockpaperscissors` — Play RPS with a friend.",
+            "`/guesspokemon` — Who's That Pokemon mini-game.",
+            "`/coinflip` — Flip a coin.",
+            "`/wordle [date]` — NYT daily Wordle with an interactive board.",
+            "`/crosswords [mini|daily] [date]` — Solve the NYT crossword clue by clue.",
+            "`/hangman [easy|medium|hard]` — Classic Hangman with letter menus.",
+            "`/battleship` — Sink the bot's fleet on a 10×10 grid.",
+            "`/connect4 [opponent]` — Drop four in a row against a friend or the bot.",
         ],
     },
     "fun": {
-        "title": "「 🎉 」Fun, Games & Party",
+        "title": "「 🎉 」Fun & Social",
         "color": discord.Color.gold(),
         "emoji": "🎉",
-        "description": "Games, jokes, memes & more",
+        "description": "Social, jokes, memes & reactions",
         "commands": [
             "`/truth` — Random truth question.",
             "`/dare` — Dare challenges.",
@@ -60,7 +69,6 @@ CATEGORIES = {
             "`/ppsize [user]` — Scientifically measure PP size.",
             "`/gayness [user]` — Measure someone's gay percentage.",
             "`/smashorpass [user]` — The ultimate verdict on a user.",
-            "`/coinflip` — Flip a coin.",
             "`/waifu [tag] [animated]` — Random SFW anime images from waifu.im.",
             "`/yiffy_sfw [category]` — Random SFW furry images from the Yiffy API.",
             "`/anime search <title>` — Search anime info on Kitsu.",
@@ -71,18 +79,14 @@ CATEGORIES = {
             "`/meme` — Random popular meme.",
             "`/animal` — Cute random animal photos.",
             "`/insult` — Generate a playful insult.",
-            "`/rockpaperscissors` — Play RPS with a friend.",
-            "`/guesspokemon` — Who's That Pokemon mini-game.",
             "`/quote` — Inspirational quotes.",
-            "`/f1` — Formula 1 latest race standings.",
-            "`/movie search <query>` — Search IMDB for movies & shows.",
         ],
     },
     "utils": {
-        "title": "「 ⚙️ 」Utilities",
+        "title": "「 ⚙️ 」Utilities & Info",
         "color": discord.Color.blue(),
         "emoji": "⚙️",
-        "description": "Handy everyday tools",
+        "description": "Tools, lookups & handy info",
         "commands": [
             "`/ping` — Check bot latency and responsiveness.",
             "`/color` — Detailed RGB/Hex color information.",
@@ -93,6 +97,8 @@ CATEGORIES = {
             "`/b64 encode|decode` — Base64 encoder/decoder.",
             "`/hn` — Top Hacker News stories.",
             "`/weather` — Current weather via Open-Meteo.",
+            "`/f1` — Formula 1 latest race standings.",
+            "`/movie search <query>` — Search IMDB for movies & shows.",
             "`/embed` — Fix social media links so they embed properly.",
             "`/testhelp` — Interactive categorized help menu.",
         ],
@@ -161,6 +167,7 @@ class Help(commands.Cog):
         self.bot = bot
 
     @commands.hybrid_command(name="help", description="Show the list of available commands.")
+    @user_app()
     async def help(self, ctx: commands.Context):
         view = HelpView(ctx.author.id)
 

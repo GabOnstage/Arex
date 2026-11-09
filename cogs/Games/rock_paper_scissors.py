@@ -3,11 +3,12 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from typing import Optional
+from utils.userapps import user_app_guild_only
 
 log = logging.getLogger("arex.rock_paper_scissors")
 
 
-async def is_valid_opponent(ctx: commands.Context, opponent: Optional[discord.Member]) -> bool:
+async def is_valid_opponent(ctx: commands.Context, opponent: Optional[discord.User]) -> bool:
     if opponent is None:
         await ctx.send("Please mention a valid server member to challenge!")
         return False
@@ -20,7 +21,7 @@ async def is_valid_opponent(ctx: commands.Context, opponent: Optional[discord.Me
     return True
 
 class RPSMenu(discord.ui.View):
-    def __init__(self, ctx: commands.Context, opponent: discord.Member):
+    def __init__(self, ctx: commands.Context, opponent: discord.User):
         super().__init__(timeout=60)
         self.ctx = ctx
         self.opponent = opponent
@@ -51,7 +52,7 @@ class RPSMenu(discord.ui.View):
             pass
 
 class RPSGame(discord.ui.View):
-    def __init__(self, ctx: commands.Context, opponent: discord.Member, selection=None):
+    def __init__(self, ctx: commands.Context, opponent: discord.User, selection=None):
         super().__init__(timeout=60)
         self.ctx = ctx
         self.opponent = opponent
@@ -130,8 +131,9 @@ class Games(commands.Cog):
         self.bot = bot
 
     @commands.hybrid_command(name="rockpaperscissors", aliases=['rps'], description="Play Rock Paper Scissors against a server member.")
+    @user_app_guild_only()
     @app_commands.describe(opponent="Select the server member you want to challenge")
-    async def rockpaperscissors(self, ctx: commands.Context, opponent: discord.Member):
+    async def rockpaperscissors(self, ctx: commands.Context, opponent: discord.User):
         """Play Rock Paper Scissors with a friend."""
         if not await is_valid_opponent(ctx, opponent):
             return

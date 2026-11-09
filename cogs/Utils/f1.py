@@ -4,6 +4,7 @@ from discord.ext import commands
 import aiohttp
 from datetime import datetime, timezone
 import asyncio
+from utils.userapps import user_app
 
 log = logging.getLogger("arex.f1")
 
@@ -13,6 +14,7 @@ class F1Info(commands.Cog):
         self.bot = bot
 
     @commands.hybrid_command(name="f1", description="Gets information and standings for the latest Formula 1 race.")
+    @user_app()
     async def f1(self, ctx: commands.Context) -> None:
         await ctx.defer()
         

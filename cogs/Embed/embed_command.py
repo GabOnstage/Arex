@@ -6,28 +6,19 @@ from discord import app_commands
 from discord.ext import commands
 
 from ._embed_common import (
-    BACKUP_DOMAINS,
     DOMAIN_ALIASES,
     OTHER_URL_PATTERN,
-    PRIMARY_DOMAINS,
     SUPPORTED_PLATFORMS,
     TRAILING_PUNCTUATION,
     get_session,
     get_tracker,
     is_wrapped,
-    log_embed,
-    resolve_link,
+    resolve_embed_site,
 )
 
+from utils.userapps import user_app
+
 log = logging.getLogger("arex.embed_command")
-
-
-PLATFORM_COGS = {
-    "tiktok.com": "TikTokEmbed",
-    "instagram.com": "InstaEmbed",
-    "reddit.com": "RedditEmbed",
-    "threads.net": "ThreadsEmbed",
-}
 
 
 def _parse_guild_ids() -> frozenset:
@@ -36,7 +27,7 @@ def _parse_guild_ids() -> frozenset:
 
 
 class EmbedFix(commands.Cog):
-    """Single listener that dispatches links to the matching platform cog."""
+    """Single listener that fixes X links natively and other sites via embed sites."""
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -113,12 +104,6 @@ class EmbedFix(commands.Cog):
     def _x_cog(self):
         return self.bot.get_cog("XEmbed")
 
-    def _platform_cog(self, domain: str):
-        cog_name = PLATFORM_COGS.get(domain)
-        if cog_name is None:
-            return None
-        return self.bot.get_cog(cog_name)
-
     def _find_other_links(self, content: str):
         found = []
         seen = set()
@@ -141,28 +126,7 @@ class EmbedFix(commands.Cog):
         try:
             fixed_links = []
             for url, domain in found:
-                cog = self._platform_cog(domain)
-                if cog is not None and hasattr(cog, "handle_message"):
-                    try:
-                        handled = await cog.handle_message(message, url)
-                    except Exception as exc:
-                        log.exception("Rich %s handler crashed", domain)
-                        log_embed(domain, f"rich handler crashed: {exc!r}")
-                        handled = False
-                    if handled:
-                        continue
-                    fixed_links.append(await cog.resolve(session, url))
-                elif cog is not None:
-                    fixed_links.append(await cog.resolve(session, url))
-                else:
-                    fixed_links.append(
-                        await resolve_link(
-                            session,
-                            url,
-                            PRIMARY_DOMAINS[domain],
-                            BACKUP_DOMAINS.get(domain),
-                        )
-                    )
+                fixed_links.append(await resolve_embed_site(session, url, domain))
 
             if not fixed_links:
                 return False
@@ -243,6 +207,7 @@ class EmbedFix(commands.Cog):
             await self.tracker.delete_tracked_reply(message.id)
 
     @commands.hybrid_command(name="embed", description="Fix a social media link so it embeds properly in Discord.")
+    @user_app()
     @app_commands.describe(link=f"Link to fix ({SUPPORTED_PLATFORMS})")
     @commands.cooldown(1, 3, commands.BucketType.user)
     async def embed(self, ctx: commands.Context, link: str):
@@ -269,28 +234,11 @@ class EmbedFix(commands.Cog):
         domain = match.group("domain").lower()
         domain = DOMAIN_ALIASES.get(domain, domain)
         url = link[match.start():match.end()].rstrip(TRAILING_PUNCTUATION)
-        cog = self._platform_cog(domain)
-
-        if cog is not None and hasattr(cog, "handle_command"):
-            try:
-                await cog.handle_command(ctx, url)
-            except Exception as exc:
-                log.exception("Rich %s command handler crashed", domain)
-                log_embed(domain, f"rich command handler crashed: {exc!r}")
-            return
 
         session, close_session = get_session(self.bot)
 
         try:
-            if cog is not None:
-                fixed = await cog.resolve(session, url)
-            else:
-                fixed = await resolve_link(
-                    session,
-                    url,
-                    PRIMARY_DOMAINS[domain],
-                    BACKUP_DOMAINS.get(domain),
-                )
+            fixed = await resolve_embed_site(session, url, domain)
             await ctx.send(fixed)
         finally:
             if close_session and session and not session.closed:

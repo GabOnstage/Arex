@@ -13,8 +13,10 @@ A feature-rich Discord bot designed with moderation, Roblox player lookup, and e
 - **Roblox Intelligence**: Look up complete player statistics, avatar thumbnails, ban status, followers, and badges (`/find`, `/badge`).
 - **Formula 1 Standings**: Real-time latest race classification, lap counts, and fastest laps powered by the OpenF1 API (`/f1`).
 - **Interactive Mini-Games & Fun**: Rock Paper Scissors (`/rockpaperscissors`), Pokemon guessing game (`/guesspokemon`), Magic 8-Ball (`/ball`), Jokes (`/joke`), Astronomy Picture of the Day (`/apod`), and Memes (`/meme`).
+- **Daily Word Games**: Wordle (`/wordle`) using the official NYT daily endpoint (with a practice fallback), an interactive NYT mini/daily crossword (`/crosswords`), Hangman (`/hangman`), Battleship (`/battleship`), and Connect 4 (`/connect4`). These use Discord Components V2, modals and buttons instead of chat-message polling.
+- **User Apps**: Fun, utility, and game commands opt in to user installation through `@user_app()`, so they work when installed to a user account, including DMs and group DMs where the command supports it. Guild-only commands such as `ship` and Rock Paper Scissors remain installable but stay guild-scoped.
 - **Moderation & Utilities**: IP/Domain Geolocation (`/locate`), User profile inspection (`/userinfo`), Temporary auto-expiring channels (`/tempchannel`), and Color analysis (`/color`).
-- **Social Media Embeds**: X/Twitter, TikTok, Instagram, Reddit, and Threads links are rendered as native bot embeds with author details, post text, images/videos, stats, a "View post" link, and an author/moderator delete button. Instagram metadata is pulled from vxinstagram, which provides captions, author/avatar details, likes/comments and full albums. X profile links are rendered as profile cards (`/xinfo`). If a platform API is unavailable, the bot logs the error to the console and falls back to the embed-proxy link behavior (`!embed`).
+- **Social Media Embeds**: X/Twitter posts are rendered as native bot embeds with author details, post text, images/videos, stats, a "View post" link, and an author/moderator delete button; X profile links are rendered as profile cards (`/xinfo`). TikTok, Instagram, Reddit, and Threads links use external embed sites instead of the internal embedder: **FixEmbed** (`https://fixembed.app/embed?url=...`) is tried first, then the platform-specific proxy embedders (for example `tnktok.com`, `vxinstagram.com`, `vxreddit.com`, and `vxthreads.net`), with the usual `!embed`/`/embed` command available for manual fixes.
 - **Hybrid Slash Commands**: Works seamlessly with both slash commands (`/command`) and text prefix commands (`!command`).
 - **App Context Menus**: Right-click a message for **Forward Message** / **Fix Embed**, or right-click a user for **User Info** / **Insult User**.
 - **Interactive Help Menu**: Categorized, paginated help browser powered by `reactionmenu` (`/testhelp` and `/help`).
@@ -33,9 +35,10 @@ A feature-rich Discord bot designed with moderation, Roblox player lookup, and e
    ```bash
    pip install -r requirements.txt
    ```
-   Inline video/GIF cards use Discord Components V2, which requires
-   **discord.py 2.6 or newer**. If you already have an older version installed,
-   force the upgrade with `pip install -U "discord.py>=2.6"`.
+   Inline video/GIF cards and the interactive games use Discord Components V2
+   and the newer modal components (Labels), which require **discord.py 2.7 or
+   newer**. If you already have an older version installed, force the upgrade
+   with `pip install -U "discord.py>=2.7"`.
 
 3. **Configure Environment Variables:**
    Copy `.env.example` to `.env` and fill in your Discord credentials:
@@ -50,6 +53,13 @@ A feature-rich Discord bot designed with moderation, Roblox player lookup, and e
 
 5. **Sync Slash Commands:**
    As the bot owner, run `!sync` in a server to synchronize slash commands with Discord.
+
+   Most fun, utility, and game commands are marked as **user-installable**. To let
+   people install them to their own account (and use supported commands in DMs),
+   enable **User Install** in your application's installation settings in the
+   Discord Developer Portal, then run `!sync` again. Commands that need a guild
+   context (for example `ship`, Rock Paper Scissors, and `foward`) stay
+   guild-scoped even when installed as a user app.
 
 ### Required Bot Permissions
 

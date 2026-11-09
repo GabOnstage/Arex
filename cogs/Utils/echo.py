@@ -1,6 +1,7 @@
 import logging
 import discord
 from discord.ext import commands
+from utils.userapps import user_app
 
 log = logging.getLogger("arex.echo")
 
@@ -10,6 +11,7 @@ class Echo(commands.Cog):
         self.bot = bot
 
     @commands.hybrid_command(name="echo", description="Repeats a message.")
+    @user_app()
     async def echo(self, ctx: commands.Context, *, message: str):
         # Prevent mass mention abuse
         await ctx.send(message, allowed_mentions=discord.AllowedMentions.none())

@@ -3,6 +3,7 @@ import discord
 from discord.ext import commands
 import aiohttp
 import urllib.parse
+from utils.userapps import user_app
 
 log = logging.getLogger("arex.eightball")
 
@@ -12,6 +13,7 @@ class Ball(commands.Cog):
         self.bot = bot
 
     @commands.hybrid_command(name="ball", aliases=["8ball", "magic8ball"], description="Ask a question to the Magic 8-Ball.")
+    @user_app()
     async def ball(self, ctx: commands.Context, *, question: str):
         """Ask a question to the Magic 8-Ball."""
         await ctx.defer()

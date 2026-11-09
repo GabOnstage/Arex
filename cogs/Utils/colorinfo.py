@@ -4,6 +4,7 @@ from discord.ext import commands
 import random
 from typing import Optional
 import aiohttp
+from utils.userapps import user_app
 
 log = logging.getLogger("arex.colorinfo")
 
@@ -55,6 +56,7 @@ class ColorInfo(commands.Cog):
         self.bot = bot
 
     @commands.hybrid_command(name="color", description="Get color information by RGB or generate a random color.")
+    @user_app()
     async def color(self, ctx: commands.Context, red: Optional[int] = None, green: Optional[int] = None, blue: Optional[int] = None):
         """Show color information."""
         await ctx.defer()

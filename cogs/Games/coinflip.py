@@ -2,6 +2,7 @@ import logging
 import discord
 from discord.ext import commands
 import random
+from utils.userapps import user_app
 
 log = logging.getLogger("arex.coinflip")
 
@@ -12,6 +13,7 @@ class CoinFlip(commands.Cog):
         self.bot = bot
 
     @commands.hybrid_command(name="coinflip", aliases=["cf", "flip"], description="Flip a coin.")
+    @user_app()
     async def coinflip(self, ctx: commands.Context):
         result = random.choice(["Heads", "Tails"])
 

@@ -5,6 +5,7 @@ import time
 from typing import Optional
 import discord
 from discord.ext import commands
+from utils.userapps import user_app
 
 log = logging.getLogger("arex.base64_cog")
 
@@ -33,6 +34,7 @@ class Base64Cog(commands.Cog):
 
     @commands.hybrid_group(name="b64", invoke_without_command=True,
                             description="Base64 encode/decode. Use `encode` or `decode` subcommands.")
+    @user_app()
     async def b64(self, ctx: commands.Context):
         await ctx.send("Use subcommands `encode` or `decode`. Example: `!b64 encode hello`")
 

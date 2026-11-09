@@ -2,6 +2,7 @@ import logging
 import discord
 from discord.ext import commands
 import aiohttp
+from utils.userapps import user_app
 
 log = logging.getLogger("arex.joke")
 
@@ -11,6 +12,7 @@ class Joke(commands.Cog):
         self.bot = bot
 
     @commands.hybrid_group(name="joke", fallback="random", description="Tells a random joke")
+    @user_app()
     async def joke(self, ctx: commands.Context) -> None:
         """Sends a Random category joke."""
         await self._fetch_jokeapi(ctx, "Any", "😂 Random Joke")

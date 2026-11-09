@@ -4,6 +4,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 import random
+from utils.userapps import user_app
 
 log = logging.getLogger("arex.anime")
 
@@ -28,6 +29,7 @@ class Anime(commands.Cog):
         self.bot = bot
 
     @commands.hybrid_group(name="anime", description="Anime-related commands.")
+    @user_app()
     async def anime_group(self, ctx: commands.Context):
         if ctx.invoked_subcommand is None:
             await ctx.send("Usage: `/anime search <title>` or `/anime quote`")

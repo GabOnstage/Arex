@@ -4,6 +4,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from typing import Optional
+from utils.userapps import user_app
 
 log = logging.getLogger("arex.waifu")
 
@@ -80,6 +81,7 @@ class Waifu(commands.Cog):
         await ctx.send(embed=embed, view=view)
 
     @commands.hybrid_command(name="waifu", description="Fetch a random SFW anime image from waifu.im.")
+    @user_app()
     @app_commands.describe(tag="Image category (defaults to Waifu)", animated="Only GIFs instead of static images")
     @app_commands.choices(tag=TAG_CHOICES)
     async def waifu(self, ctx: commands.Context, tag: Optional[app_commands.Choice[str]] = None, animated: bool = False):

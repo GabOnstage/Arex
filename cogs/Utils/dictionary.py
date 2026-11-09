@@ -3,6 +3,7 @@ import discord
 from discord.ext import commands
 import aiohttp
 from urllib.parse import quote_plus
+from utils.userapps import user_app
 
 log = logging.getLogger("arex.dictionary")
 
@@ -12,6 +13,7 @@ class Dictionary(commands.Cog):
         self.bot = bot
 
     @commands.hybrid_command(name="dictionary", description="Look up a word's definition (English).")
+    @user_app()
     async def dictionary(self, ctx: commands.Context, *, word: str):
         await ctx.defer()
         word = word.strip()

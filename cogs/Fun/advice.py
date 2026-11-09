@@ -4,6 +4,7 @@ from discord.ext import commands
 import aiohttp
 import random
 from typing import Optional
+from utils.userapps import user_app
 
 log = logging.getLogger("arex.advice")
 
@@ -64,6 +65,7 @@ class Advice(commands.Cog):
         self.bot = bot
 
     @commands.hybrid_command(name="advice", description="Get a random piece of life advice.")
+    @user_app()
     async def advice(self, ctx: commands.Context):
         """Get a random piece of advice."""
         await ctx.defer()

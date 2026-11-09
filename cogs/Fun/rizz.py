@@ -5,6 +5,7 @@ from discord import app_commands
 import aiohttp
 import random
 from typing import Optional, Tuple
+from utils.userapps import user_app
 
 log = logging.getLogger("arex.rizz")
 
@@ -54,7 +55,7 @@ async def fetch_rizz(bot: commands.Bot) -> Tuple[Optional[str], Optional[str]]:
     return random.choice(RIZZ_LINES), None
 
 class RizzView(discord.ui.View):
-    def __init__(self, bot: commands.Bot, target_user: Optional[discord.Member] = None, timeout=180):
+    def __init__(self, bot: commands.Bot, target_user: Optional[discord.User] = None, timeout=180):
         super().__init__(timeout=timeout)
         self.bot = bot
         self.target_user = target_user
@@ -79,8 +80,9 @@ class Rizz(commands.Cog):
         self.bot = bot
 
     @commands.hybrid_command(name="rizz", description="Generate a smooth or hilarious rizz / pickup line.")
+    @user_app()
     @app_commands.describe(user="Select a user you want to rizz up")
-    async def rizz(self, ctx: commands.Context, user: Optional[discord.Member] = None):
+    async def rizz(self, ctx: commands.Context, user: Optional[discord.User] = None):
         """Generate a rizz line."""
         await ctx.defer()
         line, category = await fetch_rizz(self.bot)

@@ -4,6 +4,7 @@ import random
 import aiohttp
 import asyncio
 from discord.ext import commands
+from utils.userapps import user_app
 
 log = logging.getLogger("arex.pokemon")
 
@@ -13,6 +14,7 @@ class Pokemon(commands.Cog):
         self.bot = bot
 
     @commands.hybrid_command(name="guesspokemon", description="Play a Who's That Pokemon guessing game!")
+    @user_app()
     async def guesspokemon(self, ctx: commands.Context):
         await ctx.defer()
         

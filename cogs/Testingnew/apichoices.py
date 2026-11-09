@@ -4,6 +4,7 @@ from discord.ext import commands
 from discord import app_commands
 from typing import List
 import aiohttp
+from utils.userapps import user_app
 
 log = logging.getLogger("arex.apichoices")
 
@@ -15,6 +16,7 @@ class ChoiceApi(commands.Cog):
         self.bot = bot
 
     @commands.hybrid_command(name='dynachoiceapi', description="Demonstration of dynamic API choices autocomplete.")
+    @user_app()
     async def fruits(self, ctx: commands.Context, username: str):
         await ctx.send(f'Selected username: `{username}`')
 

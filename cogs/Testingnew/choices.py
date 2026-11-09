@@ -3,6 +3,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from typing import List
+from utils.userapps import user_app
 
 log = logging.getLogger("arex.choices")
 
@@ -12,6 +13,7 @@ class FruitChoices(commands.Cog):
         self.bot = bot
 
     @commands.hybrid_command(name='dynachoice', description="Example static autocomplete choices.")
+    @user_app()
     async def fruits(self, ctx: commands.Context, fruits: str):
         await ctx.send(f'Your favourite fruit seems to be `{fruits}`')
 

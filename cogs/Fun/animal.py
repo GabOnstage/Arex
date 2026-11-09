@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 import random
 from typing import Optional
 import asyncio
+from utils.userapps import user_app
 
 log = logging.getLogger("arex.animal")
 
@@ -55,6 +56,7 @@ class Animal(commands.Cog):
                 return data.get('link') or data.get('url')
 
     @commands.hybrid_command(name="animal", description="Sends a random picture of the specified animal!", aliases=['pet'])
+    @user_app()
     @app_commands.describe(animal='Pick an animal type')
     @app_commands.choices(animal=[
         app_commands.Choice(name='Dog', value="dog"),

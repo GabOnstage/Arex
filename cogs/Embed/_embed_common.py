@@ -5,7 +5,7 @@ import io
 import json
 import re
 from datetime import datetime, timezone
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import quote, urlsplit, urlunsplit
 
 import aiohttp
 import discord
@@ -34,6 +34,17 @@ BACKUP_DOMAINS = {
 }
 
 SUPPORTED_PLATFORMS = "X/Twitter, TikTok, Instagram, Reddit, Threads"
+
+# External embed fixers used by the non-X platforms.  FixEmbed is preferred
+# because it renders rich previews for every supported site; the per-platform
+# proxy domains below are the fallback chain.
+FIXEMBED_URL = "https://fixembed.app/embed?url={url}"
+
+# FixEmbed generates its preview on demand and regularly takes a few seconds
+# to answer, so it needs a longer budget than the lightweight proxy probes.
+FIXEMBED_TIMEOUT = 10
+PROXY_TIMEOUT = 4
+FIXEMBED_HEAD_BYTES = 16384
 
 MAX_VIDEO_BYTES = 10 * 1024 * 1024
 
@@ -145,8 +156,77 @@ async def resolve_link(session, url: str, primary_domain: str, backup_domain: st
     return primary
 
 
+def fixembed_url(url: str) -> str:
+    """Return a FixEmbed URL for *url*."""
+
+    return FIXEMBED_URL.format(url=quote(url, safe=""))
+
+
+async def resolve_embed_site(session, url: str, domain: str) -> str:
+    """Resolve a non-X link to an external embed site.
+
+    FixEmbed is tried first; the platform-specific proxy domains are used as
+    fallbacks.  The FixEmbed URL is validated with the same Discordbot user
+    agent Discord uses when unfurling links.  FixEmbed is slow by design, so a
+    timeout is not treated as a failure: the URL is still returned because
+    Discord will fetch it later.
+    """
+
+    primary_domain = PRIMARY_DOMAINS.get(domain)
+    backup_domain = BACKUP_DOMAINS.get(domain)
+
+    candidates = [fixembed_url(url)]
+    if primary_domain:
+        candidates.append(_swap_domain(url, primary_domain))
+    if backup_domain:
+        candidates.append(_swap_domain(url, backup_domain))
+
+    fixembed = candidates[0]
+    for attempt in range(2):
+        try:
+            async with session.get(
+                fixembed,
+                headers={"User-Agent": DISCORD_BOT_UA},
+                timeout=aiohttp.ClientTimeout(total=FIXEMBED_TIMEOUT),
+            ) as resp:
+                if resp.status < 500:
+                    # The metadata lives in <head>; no need to download the
+                    # whole preview page.
+                    body = await resp.content.read(FIXEMBED_HEAD_BYTES)
+                    head = body.decode("utf-8", "ignore")
+                    if "og:title" in head or "twitter:title" in head:
+                        return fixembed
+        except asyncio.TimeoutError:
+            # FixEmbed is reachable but slow.  It is still the preferred
+            # embedder, so let Discord try it instead of downgrading.
+            return fixembed
+        except aiohttp.ClientError:
+            break
+
+        # A normal HTTP response without preview metadata usually means
+        # FixEmbed could not resolve the link.  Retry once, since the first
+        # request is occasionally a generic/rate-limited page.
+        if attempt == 0:
+            await asyncio.sleep(0.5)
+
+    for candidate in candidates[1:]:
+        try:
+            async with session.get(
+                candidate,
+                headers={"User-Agent": DISCORD_BOT_UA},
+                timeout=aiohttp.ClientTimeout(total=PROXY_TIMEOUT),
+            ) as resp:
+                if resp.status < 500:
+                    return candidate
+        except (aiohttp.ClientError, asyncio.TimeoutError):
+            continue
+
+    # Everything failed: still prefer FixEmbed over the raw link.
+    return fixembed
+
+
 class LinkPlatform(commands.Cog):
-    """Base for platforms that only need their domain swapped to a proxy."""
+    """Base for platforms that resolve to an external embed site."""
 
     DOMAIN = ""
 
@@ -154,12 +234,7 @@ class LinkPlatform(commands.Cog):
         self.bot = bot
 
     async def resolve(self, session: aiohttp.ClientSession, url: str) -> str:
-        return await resolve_link(
-            session,
-            url,
-            PRIMARY_DOMAINS[self.DOMAIN],
-            BACKUP_DOMAINS.get(self.DOMAIN),
-        )
+        return await resolve_embed_site(session, url, self.DOMAIN)
 
 
 class ReplyTracker:
@@ -952,7 +1027,7 @@ class RichLinkPlatform(LinkPlatform):
 
     Subclasses only need to provide ``PLATFORM``, ``COLOR``, ``URL_PATTERN``,
     ``parse_link`` and ``fetch_post``. Fetch failures automatically fall back
-    to the existing embed-proxy link behavior.
+    to the FixEmbed/proxy embed-site behavior.
     """
 
     PLATFORM = ""
@@ -985,10 +1060,7 @@ class RichLinkPlatform(LinkPlatform):
         raise NotImplementedError
 
     async def fallback_url(self, session: aiohttp.ClientSession, url: str) -> str:
-        primary = PRIMARY_DOMAINS.get(self.DOMAIN)
-        if not primary:
-            return url
-        return await resolve_link(session, url, primary, BACKUP_DOMAINS.get(self.DOMAIN))
+        return await resolve_embed_site(session, url, self.DOMAIN)
 
     async def _reply_with_fallback(self, message, session, url: str):
         fixed = await self.fallback_url(session, url)

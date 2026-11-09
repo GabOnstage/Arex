@@ -4,6 +4,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from reactionmenu import ViewButton, ViewMenu, ViewSelect, Page
+from utils.userapps import user_app
 
 log = logging.getLogger("arex.help_menu")
 
@@ -37,13 +38,14 @@ class HelpMenu(commands.Cog):
         return '\n'.join(section_content) if section_content else "No documentation found for this section."
 
     @commands.hybrid_command(name="testhelp", description="Get information about commands via interactive menu")
+    @user_app()
     @app_commands.rename(group='category')
     @app_commands.describe(group='Select a Category')
     @app_commands.choices(group=[
         app_commands.Choice(name='Admin', value="admin"),
-        app_commands.Choice(name='Fun', value="fun"),
-        app_commands.Choice(name='Movies/Anime', value="movies-anime"),
-        app_commands.Choice(name='Roblox', value="roblox"),
+        app_commands.Choice(name='Games', value="roblox"),
+        app_commands.Choice(name='Fun & Social', value="fun"),
+        app_commands.Choice(name='Media & Info', value="movies-anime"),
         app_commands.Choice(name='Utilities', value="utilities")
     ])
     async def help_command(self, ctx: commands.Context, group: str = None):
@@ -51,8 +53,8 @@ class HelpMenu(commands.Cog):
 
         admindesc = self.get_section_content('admin1')
         fundesc = self.get_section_content('fun1')
-        robloxdesc = self.get_section_content('roblox1')
-        animedesc = self.get_section_content('anime-movies1')
+        gamesdesc = self.get_section_content('roblox1')
+        mediadesc = self.get_section_content('anime-movies1')
         utilsdesc = self.get_section_content('utilities1')
 
         if group is None:
@@ -66,33 +68,33 @@ class HelpMenu(commands.Cog):
                 discord.SelectOption(label="Admin", emoji="🔨"): [
                     Page(embed=discord.Embed(title="🔨 Admin Commands", description=admindesc, color=discord.Color.blue()))
                 ],
-                discord.SelectOption(label="Fun", emoji="🎉"): [
-                    Page(embed=discord.Embed(title="🎉 Fun Commands", description=fundesc, color=discord.Color.green())),
+                discord.SelectOption(label="Games", emoji="🎮"): [
+                    Page(embed=discord.Embed(title="🎮 Games", description=gamesdesc, color=discord.Color.green()))
                 ],
-                discord.SelectOption(label="Anime/Movies", emoji="🎥"): [
-                    Page(embed=discord.Embed(title="🎥 Anime/Movie Commands", description=animedesc, color=discord.Color.purple()))
+                discord.SelectOption(label="Fun & Social", emoji="🎉"): [
+                    Page(embed=discord.Embed(title="🎉 Fun & Social", description=fundesc, color=discord.Color.gold())),
                 ],
-                discord.SelectOption(label="Roblox", emoji="🎮"): [
-                    Page(embed=discord.Embed(title="🎮 Roblox & Minecraft Commands", description=robloxdesc, color=discord.Color.red()))
+                discord.SelectOption(label="Media & Info", emoji="🎥"): [
+                    Page(embed=discord.Embed(title="🎥 Media & Info", description=mediadesc, color=discord.Color.purple()))
                 ],
                 discord.SelectOption(label="Utilities", emoji="🎲"): [
-                    Page(embed=discord.Embed(title="🎲 Utility Commands", description=utilsdesc, color=discord.Color.gold()))
+                    Page(embed=discord.Embed(title="🎲 Utility Commands", description=utilsdesc, color=discord.Color.orange()))
                 ]
             }))
         else:
             group = group.lower()
             if group == "admin":
                 embed = discord.Embed(title="🔨 Admin Commands", description=admindesc, color=discord.Color.blue())
-            elif group == "fun":
-                embed = discord.Embed(title="🎉 Fun Commands", description=fundesc, color=discord.Color.green())
-            elif group in ("movies-anime", "anime"):
-                embed = discord.Embed(title="🎥 Anime/Movie Commands", description=animedesc, color=discord.Color.purple())
-            elif group == "roblox":
-                embed = discord.Embed(title="🎮 Roblox & Minecraft Commands", description=robloxdesc, color=discord.Color.red())
-            elif group in ("utilities", "utils"):
-                embed = discord.Embed(title="🎲 Utility Commands", description=utilsdesc, color=discord.Color.gold())
+            elif group in ("roblox", "games", "game", "gaming", "minecraft"):
+                embed = discord.Embed(title="🎮 Games", description=gamesdesc, color=discord.Color.green())
+            elif group in ("fun", "social"):
+                embed = discord.Embed(title="🎉 Fun & Social", description=fundesc, color=discord.Color.gold())
+            elif group in ("movies-anime", "anime", "media", "info"):
+                embed = discord.Embed(title="🎥 Media & Info", description=mediadesc, color=discord.Color.purple())
+            elif group in ("utilities", "utils", "utility"):
+                embed = discord.Embed(title="🎲 Utility Commands", description=utilsdesc, color=discord.Color.orange())
             else:
-                await ctx.send("Invalid category specified. Please choose from 'admin', 'fun', 'movies-anime', 'roblox', or 'utilities'.")
+                await ctx.send("Invalid category specified. Please choose from 'admin', 'games', 'fun', 'media', or 'utilities'.")
                 return
             await ctx.send(embed=embed)
             return

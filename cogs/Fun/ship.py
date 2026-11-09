@@ -3,6 +3,7 @@ import hashlib
 import discord
 from discord.ext import commands
 from discord import app_commands
+from utils.userapps import user_app_guild_only
 
 log = logging.getLogger("arex.ship")
 
@@ -38,8 +39,9 @@ class Ship(commands.Cog):
         self.bot = bot
 
     @commands.hybrid_command(name="ship", description="Calculate the compatibility between two users.")
+    @user_app_guild_only()
     @app_commands.describe(user1="First user to ship", user2="Second user to ship")
-    async def ship(self, ctx: commands.Context, user1: discord.Member, user2: discord.Member):
+    async def ship(self, ctx: commands.Context, user1: discord.User, user2: discord.User):
         percent = _seeded_percent(user1.id, user2.id)
 
         embed = discord.Embed(

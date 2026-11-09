@@ -4,6 +4,7 @@ from discord import app_commands
 from discord.ext import commands
 import aiohttp
 from urllib.parse import quote_plus
+from utils.userapps import user_app
 
 log = logging.getLogger("arex.minecraft")
 
@@ -21,6 +22,7 @@ class Minecraft(commands.Cog):
         self.bot = bot
 
     @commands.hybrid_group(name="mc", description="Minecraft-related commands.")
+    @user_app()
     async def mc_group(self, ctx: commands.Context):
         if ctx.invoked_subcommand is None:
             await ctx.send("Usage: `/mc server <address>` or `/mc skin <username>`")

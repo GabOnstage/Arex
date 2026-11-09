@@ -3,6 +3,7 @@ import os
 import discord
 import aiohttp
 from discord.ext import commands
+from utils.userapps import user_app
 
 log = logging.getLogger("arex.apod")
 
@@ -12,6 +13,7 @@ class APOD(commands.Cog):
         self.bot = bot
 
     @commands.hybrid_command(name="apod", description="NASA Astronomy Picture of the Day.")
+    @user_app()
     async def get_apod(self, ctx: commands.Context):
         await ctx.defer()
         api_key = os.getenv('NASA_API_KEY') or 'DEMO_KEY'

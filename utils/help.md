@@ -1,11 +1,11 @@
 <___main-start___>
 ➜ Currently `5` Categories and `50+` Commands!
 
-➜ Categories: 
- 🔨 Admin | 🎉 Fun & Games | 🎥 Anime/Movies
- 🎮 Roblox & Minecraft | 🎲 Utilities
- 
- ➜ Need more help? 
+➜ Categories:
+ 🔨 Admin | 🎮 Games | 🎉 Fun & Social
+ 🎥 Media & Info | 🎲 Utilities
+
+ ➜ Need more help?
 [Website](https://google.com) | [Wiki](https://google.com) | [Privacy Policy](https://google.com) | [Discord](https://google.com)
 <___main-end___>
 
@@ -32,36 +32,54 @@
 - `/meme`: Random popular meme from Reddit.
 - `/ball`: Ask the Magic 8-Ball a question.
 - `/insult`: Generate a playful insult.
-- `/rockpaperscissors`: Play Rock Paper Scissors against a friend.
-- `/guesspokemon`: Who's That Pokemon mini-game.
-- `/f1`: Latest Formula 1 race results and standings.
+- `/ship`: Calculate compatibility between two users.
+- `/ppsize`: Measure PP size (for fun).
+- `/gayness`: Measure someone's gay percentage (for fun).
+- `/smashorpass`: The ultimate verdict on a user.
+- `/action`: Anime reaction GIFs (hug, slap, pat, etc.).
+- `/anime search` / `/anime quote`: Anime info and quotes.
+- `/waifu`: Random SFW anime images.
+- `/yiffy_sfw`: Random SFW furry images.
 - `/avatar`: Process an image through the jeyy image API.
 <___fun1-end___>
 
 <___roblox1-start___>
-- `/find`: Comprehensive Roblox user lookup (avatar, presence, ban status, followers).
-- `/badge`: Lookup badges for a Roblox user.
-- `/rotector_user`: Rotector flag status for a Roblox user.
-- `/rotector_user_plain`: Flag status only (plaintext).
-- `/rotector_user_batch`: Batch Roblox user lookup (max 100 IDs).
-- `/rotector_user_status_batch`: Batch flag statuses only.
-- `/rotector_user_discord`: Discord accounts linked to a Roblox user.
-- `/rotector_group`: Rotector flag status for a Roblox group.
-- `/rotector_group_plain`: Group flag status only (plaintext).
-- `/rotector_group_batch`: Batch Roblox group lookup (max 100 IDs).
-- `/rotector_group_tracked`: Tracked (flagged) users in a group.
-- `/rotector_discord`: Rotector info for a Discord user ID.
-- `/rotector_discord_batch`: Batch Discord user lookup (max 100 IDs).
+Roblox:
+- `/roblox user <user>`: Comprehensive Roblox user lookup (avatar, presence, ban status, followers).
+- `/roblox badge <user>`: Lookup badges for a Roblox user.
+- `/roblox rotector-user <id>`: Rotector flag status for a Roblox user.
+- `/roblox rotector-user-plain <id>`: Flag status only (plaintext).
+- `/roblox rotector-user-batch <ids>`: Batch Roblox user lookup (max 100 IDs).
+- `/roblox rotector-user-status-batch <ids>`: Batch flag statuses only.
+- `/roblox rotector-user-discord <id>`: Discord accounts linked to a Roblox user.
+- `/roblox rotector-group <id>`: Rotector flag status for a Roblox group.
+- `/roblox rotector-group-plain <id>`: Group flag status only (plaintext).
+- `/roblox rotector-group-batch <ids>`: Batch Roblox group lookup (max 100 IDs).
+- `/roblox rotector-group-tracked <id>`: Tracked (flagged) users in a group.
+- `/roblox rotector-discord <id>`: Rotector info for a Discord user ID.
+- `/roblox rotector-discord-batch <ids>`: Batch Discord user lookup (max 100 IDs).
 
 Minecraft:
-- `/mcserver`: Server status, players, MOTD & version (mcsrvstat.us).
-- `/mcskin`: User skin/avatar renders, UUID & NameMC link.
+- `/mc server <address>`: Server status, players, MOTD & version (mcsrvstat.us).
+- `/mc skin <username>`: User skin/avatar renders, UUID & NameMC link.
+
+Mini-games:
+- `/rockpaperscissors`: Play Rock Paper Scissors against a friend.
+- `/guesspokemon`: Who's That Pokemon mini-game.
+- `/coinflip`: Flip a coin.
+- `/wordle [date]`: NYT Wordle with an interactive board (adds a practice word if the API is unavailable).
+- `/crosswords [mini|daily] [date]`: Solve the NYT crossword clue by clue.
+- `/hangman [easy|medium|hard]`: Classic Hangman with letter menus.
+- `/battleship`: Sink the bot's fleet on a 10×10 grid.
+- `/connect4 [opponent]`: Drop four in a row against a friend or the bot.
+- These game commands are user-installable and work in DMs where Discord allows it.
 <___roblox1-end___>
 
 <___anime-movies1-start___>
-- `/quote`: Inspirational quotes with interactive refresh.
+- `/movie search <query>`: Search IMDB for movies & shows.
+- `/f1`: Latest Formula 1 race results and standings.
 - `/apod`: NASA Astronomy Picture of the Day.
-- `/imdb`: Search IMDB for movies & shows.
+- `/quote`: Inspirational quotes with interactive refresh.
 <___anime-movies1-end___>
 
 <___utilities1-start___>

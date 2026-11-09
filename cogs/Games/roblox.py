@@ -10,6 +10,7 @@ import os
 from datetime import datetime, timezone
 from time import monotonic
 from typing import List, Optional, Union
+from utils.userapps import user_app
 
 log = logging.getLogger("arex.roblox")
 
@@ -297,6 +298,7 @@ class Roblox(commands.Cog):
     # /roblox parent group
     # ════════════════════════════════════════════════════════════════════════
     @commands.hybrid_group(name="roblox", description="Roblox-related commands.")
+    @user_app()
     async def roblox_group(self, ctx: commands.Context):
         if ctx.invoked_subcommand is None:
             await ctx.send("Usage: `/roblox user`, `/roblox badge`, `/roblox rotector-*`")

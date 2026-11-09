@@ -5,6 +5,7 @@ from discord import app_commands
 import aiohttp
 import random
 from typing import Optional
+from utils.userapps import user_app
 
 log = logging.getLogger("arex.tod")
 
@@ -135,6 +136,7 @@ class TruthOrDare(commands.Cog):
         self.bot = bot
 
     @commands.hybrid_command(name="truth", description="Get a random Truth question.")
+    @user_app()
     @app_commands.describe(rating="Rating filter for the question")
     @app_commands.choices(rating=[
         app_commands.Choice(name="PG (Family friendly)", value="pg"),
@@ -158,6 +160,7 @@ class TruthOrDare(commands.Cog):
         await ctx.send(embed=embed, view=view)
 
     @commands.hybrid_command(name="dare", description="Get a random Dare challenge.")
+    @user_app()
     @app_commands.describe(rating="Rating filter for the dare")
     @app_commands.choices(rating=[
         app_commands.Choice(name="PG (Family friendly)", value="pg"),
@@ -181,6 +184,7 @@ class TruthOrDare(commands.Cog):
         await ctx.send(embed=embed, view=view)
 
     @commands.hybrid_command(name="nhie", description="Get a random 'Never Have I Ever' statement.")
+    @user_app()
     @app_commands.describe(rating="Rating filter for the prompt")
     @app_commands.choices(rating=[
         app_commands.Choice(name="PG (Family friendly)", value="pg"),
@@ -204,6 +208,7 @@ class TruthOrDare(commands.Cog):
         await ctx.send(embed=embed, view=view)
 
     @commands.hybrid_command(name="wyr", description="Get a random 'Would You Rather' question.")
+    @user_app()
     @app_commands.describe(rating="Rating filter for the question")
     @app_commands.choices(rating=[
         app_commands.Choice(name="PG (Family friendly)", value="pg"),
@@ -227,6 +232,7 @@ class TruthOrDare(commands.Cog):
         await ctx.send(embed=embed, view=view)
 
     @commands.hybrid_command(name="paranoia", description="Get a random Paranoia question.")
+    @user_app()
     @app_commands.describe(rating="Rating filter for the question")
     @app_commands.choices(rating=[
         app_commands.Choice(name="PG (Family friendly)", value="pg"),
