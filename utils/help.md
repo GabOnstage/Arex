@@ -16,6 +16,7 @@
 - `/locate`: Geolocation lookup for IP or domain.
 - `/userinfo`: Inspect Discord user profiles and badges.
 - `/tempchannel`: Create temporary self-destructing channels.
+- `/rename`: Rename another member (requires Manage Nicknames).
 <___admin1-end___>
 
 <___fun1-start___>
@@ -94,5 +95,7 @@ Mini-games:
 - `/hn`: Top Hacker News stories.
 - `/weather`: Current weather via Open-Meteo.
 - `/foward`: Forward a message and its images to another channel (works with bot messages and keeps a copy).
-- **Context menus**: Right-click a message for `Forward Message` / `Fix Embed`, or right-click a user for `User Info` / `Insult User`.
+- `/translate`: Translate text or a replied-to message. Auto-detects the language and defaults to English, with a menu for 25 other languages.
+- `/nickname`: Change or reset your own server nickname.
+- **Context menus**: Right-click a message for `Translate Message` / `Forward Message` / `Fix Embed`, or right-click a user for `User Info` / `Insult User`.
 <___utilities1-end___>

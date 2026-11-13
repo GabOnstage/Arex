@@ -19,6 +19,7 @@ CATEGORIES = {
             "`/locate` — Geolocation lookup for IP/Domain.",
             "`/userinfo` — Detailed user information & Discord badges.",
             "`/tempchannel` — Create auto-expiring temporary channels.",
+            "`/rename` — Rename another member (Manage Nicknames).",
         ],
     },
     "games": {
@@ -100,6 +101,8 @@ CATEGORIES = {
             "`/f1` — Formula 1 latest race standings.",
             "`/movie search <query>` — Search IMDB for movies & shows.",
             "`/embed` — Fix social media links so they embed properly.",
+            "`/translate [text]` — Translate text or a replied-to message (English by default, language menu).",
+            "`/nickname [nickname]` — Change or reset your own server nickname.",
             "`/testhelp` — Interactive categorized help menu.",
         ],
     },
